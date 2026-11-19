@@ -242,12 +242,14 @@
         <button class="btn ghost small icon-only pane-collapse" type="button" data-pane="text" aria-label="طي النص" title="طي النص">
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-in-line-horizontal"/></svg>
         </button>
-        <label class="inline-field">المحرك <select id="engineSel"></select></label>
+        <!-- data-phone-in: on phones it moves into that slot of the reading options sheet (app.js placeForPhone) -->
+        <label class="inline-field" data-phone-in="phoneEngineSlot">المحرك <select id="engineSel"></select></label>
         <details class="pop-wrap" id="readPop">
           <summary class="btn ghost small" title="خيارات القراءة">
             <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#sliders-horizontal"/></svg><span>خيارات</span>
           </summary>
           <div class="pop">
+            <div class="phone-slot" id="phoneEngineSlot"></div>
             <label class="field" id="cleanupWrap">تحسين الصورة
               <select id="cleanupSel">
                 <option value="clean" selected>تنظيف</option>
@@ -270,22 +272,24 @@
             </label>
             <label class="field hidden" id="modelWrap">النموذج <select id="modelSel"></select></label>
             <label class="check hidden" id="skipWrap"><input type="checkbox" id="skipLetterhead" checked> تجاهل ترويسة الأصل</label>
+            <div class="phone-slot" id="phoneReadAllSlot"></div>
           </div>
         </details>
         <button class="btn primary small" id="btnRead" type="button">
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#scan"/></svg><span>اقرأ الصفحة</span>
         </button>
-        <button class="btn small" id="btnReadAll" type="button">اقرأ غير المقروء</button>
+        <button class="btn small" id="btnReadAll" type="button" data-phone-in="phoneReadAllSlot">اقرأ غير المقروء</button>
         <span id="readState" class="read-state muted" role="status"></span>
-      </div>
-      <div class="edit-bar">
-        <div class="fmt-bar" id="fmtBar" role="toolbar" aria-label="تنسيق النص"></div>
+        <!-- the page's earlier readings and versions: with the reading controls -->
         <details class="pop-wrap" id="verPop">
           <summary class="btn ghost small" title="القراءات والنسخ السابقة لنص هذه الصفحة">
             <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#clock-counter-clockwise"/></svg><span>النسخ</span>
           </summary>
           <div class="pop ver-pop"><ul id="verList" class="ver-list"></ul></div>
         </details>
+      </div>
+      <div class="edit-bar">
+        <div class="fmt-bar" id="fmtBar" role="toolbar" aria-label="تنسيق النص"></div>
       </div>
       <div class="editor-scroll" id="editorScroll">
         <div id="editor" class="editor sheet" aria-label="نص الصفحة"></div>

@@ -299,6 +299,15 @@
 
   // phones show the popups as bottom sheets (app.css, --sheet): then they are not placed beside what opened them
   const sheets = () => getComputedStyle(document.documentElement).getPropertyValue('--sheet').trim() === '1';
+  // phones: a few bar controls live in a sheet (data-phone-in = the slot's id), and come back on wider screens
+  function placeForPhone() {
+    const phone = sheets();
+    document.querySelectorAll('[data-phone-in]').forEach((el) => {
+      if (!el.phoneHome) { el.phoneHome = document.createComment(' ' + el.dataset.phoneIn + ' '); el.before(el.phoneHome); }
+      if (phone) { if (el.parentElement.id !== el.dataset.phoneIn) $(el.dataset.phoneIn).append(el); }
+      else if (el.phoneHome.nextSibling !== el) el.phoneHome.after(el);
+    });
+  }
   function asSheet(pop) {
     if (!sheets()) return false;
     pop.style.top = pop.style.left = pop.style.right = '';
@@ -757,6 +766,7 @@
     updateStage();
     $('btnRead').disabled = !p || busy;
     $('readState').textContent = text || (busy ? 'جارٍ القراءة…' : p && p.readWith ? 'قُرئت بـ ' + engineLabel(p.readWith) : '');
+    $('readState').classList.toggle('busy', !!busy);  // phones show the state only while reading
   }
 
   function pushVersion(p, label, blocks) {
@@ -1034,11 +1044,12 @@
   // typed) shows nothing on a click; the toolbar button says why.
   let lineAt = null;       // { t: pe.readTarget(), which: 'line' | 'para' | 'row', result }
   let lineWhich = 'line';  // the last choice, while the app is open
-  // the click preview can be turned off from the toolbar (remembered on this computer)
-  const previewOn = () => store.get('linePreview') !== 'off';
+  // the click preview can be turned off from the toolbar (remembered on this computer); phones start with it off,
+  // since there it comes up as a sheet over half the screen on every tap into the text
+  const previewOn = () => { const v = store.get('linePreview'); return v ? v === 'on' : !sheets(); };
   function togglePreview() {
     const on = !previewOn();
-    store.set('linePreview', on ? '' : 'off', true);
+    store.set('linePreview', on ? 'on' : 'off', true);
     if (!on) closeLine();
     toast(on ? 'تظهر صورة السطر عند النقر في النص.' : 'أُوقفت معاينة السطر عند النقر. زر "أعد القراءة" يعرضه متى شئت.');
   }
@@ -1523,10 +1534,14 @@
     }
 
     // popovers: one open at a time, closed by a click anywhere outside them
-    const pops = [...document.querySelectorAll('details.pop-wrap')];
-    pops.forEach((d) => d.addEventListener('toggle', () => { if (d.open) pops.forEach((o) => { if (o !== d) o.open = false; }); }));
+    // looked up each time: the text toolbar adds its own (its phone sheets, editor.js)
+    const pops = () => document.querySelectorAll('details.pop-wrap');
+    document.addEventListener('toggle', (e) => {  // toggle does not bubble; this listens on the way down
+      const d = e.target;
+      if (d.matches && d.matches('details.pop-wrap') && d.open) pops().forEach((o) => { if (o !== d) o.open = false; });
+    }, true);
     const closePops = (e) => {
-      pops.forEach((d) => { if (d.open && !d.contains(e.target)) d.open = false; });
+      pops().forEach((d) => { if (d.open && !d.contains(e.target)) d.open = false; });
       if (colFilterFor && !e.target.closest('#colFilter, .filt')) closeColFilter(false);
       if (noteMark && !e.target.closest('#notePop, mark.flag, .flag-item')) closeNote();
       if (lineAt && !e.target.closest('#linePop')) closeLine();
@@ -1535,6 +1550,8 @@
     // nothing under it is pressed; closing on the press would let the click through to the button underneath
     const onDim = (e) => e.target === document.body && sheets();
     document.addEventListener('pointerdown', (e) => { if (!onDim(e)) closePops(e); });
+    placeForPhone();
+    window.addEventListener('resize', placeForPhone);
     document.addEventListener('click', (e) => { if (onDim(e)) closePops(e); });
 
     $('btnPick').onclick = () => $('fileAdd').click();

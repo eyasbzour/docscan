@@ -397,6 +397,8 @@
     const can = (pe, fn) => { try { return fn(pe.editor.can().chain().focus()).run(); } catch (e) { return false; } };
 
     // small panels under a toolbar button (colours, table size); one at a time, closed by Esc or a click elsewhere
+    // phones (app.css --sheet): one row of the commonest tools, the rest in two sheets; panels come up as sheets too
+    const phone = () => getComputedStyle(document.documentElement).getPropertyValue('--sheet').trim() === '1';
     let open = null;
     const closePop = () => { if (open) { open.pop.remove(); open.btn.setAttribute('aria-expanded', 'false'); open = null; } };
     const popover = (btn, build) => {
@@ -409,9 +411,11 @@
         pop.className = 'tb-pop'; pop.setAttribute('role', 'dialog'); pop.setAttribute('aria-label', btn.getAttribute('aria-label'));
         build(pop);
         document.body.append(pop);
-        const r = btn.getBoundingClientRect();
-        pop.style.top = (r.bottom + 4) + 'px';
-        pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px';
+        if (!phone()) {
+          const r = btn.getBoundingClientRect();
+          pop.style.top = (r.bottom + 4) + 'px';
+          pop.style.left = Math.max(8, Math.min(r.right - pop.offsetWidth, innerWidth - pop.offsetWidth - 8)) + 'px';
+        }
         btn.setAttribute('aria-expanded', 'true');
         open = { btn, pop };
         const first = pop.querySelector('button, input'); if (first) first.focus({ preventScroll: true });
@@ -524,7 +528,7 @@
       const pe = get(); if (!pe) return;
       const row = () => ({ type: 'tableRow', content: Array.from({ length: cols }, () => ({ type: 'tableCell', content: [{ type: 'paragraph' }] })) });
       pe.insertBlock({ type: 'table', content: Array.from({ length: rows }, row) });
-      closePop();
+      closePop(); closeSheets();
     };
     // like Word: point at the grid for the size, or type any number of rows and columns
     popover(button(ins, { icon: 'table', text: 'جدول', label: 'إدراج جدول', run: () => {} }), (pop) => {
@@ -558,22 +562,56 @@
     });
     button(ins, { icon: 'images', text: 'صورة', label: 'إدراج جزء من صورة الصفحة (شعار، رسم، توقيع)', run: () => actions.picture(), always: true,
       enabled: () => actions.hasPage() });
-    button(ins, { icon: 'flag', text: 'تعليم', label: 'تعليم النص المحدد كملاحظة', run: () => actions.flag(), always: true, enabled: (pe) => !!pe });
+    const flagBtn = button(ins, { icon: 'flag', text: 'تعليم', label: 'تعليم النص المحدد كملاحظة', run: () => actions.flag(), always: true, enabled: (pe) => !!pe });
+    const insOwn = [...ins.children];
 
     // the line at the cursor: its spot on the photo, and reading it again with another engine (the app's panel)
     const again = group();
-    button(again, { icon: 'scan', text: 'أعد القراءة', label: 'السطر في صورة الصفحة، وقراءته بقارئ آخر', run: () => actions.showLine() });
+    const rereadBtn = button(again, { icon: 'scan', text: 'أعد القراءة', label: 'السطر في صورة الصفحة، وقراءته بقارئ آخر', run: () => actions.showLine() });
     // a click into the text shows that line on the photo; this turns that off and on (remembered on this computer)
-    button(again, { icon: 'eye', label: 'معاينة السطر من الصورة عند النقر', always: true, on: () => actions.previewOn(),
+    const eyeBtn = button(again, { icon: 'eye', label: 'معاينة السطر من الصورة عند النقر', always: true, on: () => actions.previewOn(),
       run: () => { actions.togglePreview(); update(); } });
 
     const hist = group();
-    button(hist, { icon: 'arrow-u-up-right', label: 'تراجع', keys: 'Ctrl+Z', run: (pe) => pe.chain().undo().run(), enabled: (pe) => can(pe, (c) => c.undo()) });
-    button(hist, { icon: 'arrow-u-up-left', label: 'إعادة', keys: 'Ctrl+Y', run: (pe) => pe.chain().redo().run(), enabled: (pe) => can(pe, (c) => c.redo()) });
+    const undoBtn = button(hist, { icon: 'arrow-u-up-right', label: 'تراجع', keys: 'Ctrl+Z', run: (pe) => pe.chain().undo().run(), enabled: (pe) => can(pe, (c) => c.undo()) });
+    const redoBtn = button(hist, { icon: 'arrow-u-up-left', label: 'إعادة', keys: 'Ctrl+Y', run: (pe) => pe.chain().redo().run(), enabled: (pe) => can(pe, (c) => c.redo()) });
 
-    // two rows that sit side by side when the pane is wide: the text's look, then the paragraph, inserts and undo
+    // phones: a sheet opened from the row (app.js closes it like its own popovers: outside, Esc, its dim)
+    const sheet = (ic, text, label) => {
+      const d = document.createElement('details'); d.className = 'pop-wrap tb-sheet';
+      const s = document.createElement('summary'); s.className = 'tb tb-text'; s.title = label; s.setAttribute('aria-label', label);
+      s.append(icon(ic), document.createTextNode(text));
+      const body = document.createElement('div'); body.className = 'pop'; body.setAttribute('role', 'group'); body.setAttribute('aria-label', label);
+      d.append(s, body); return { d, body };
+    };
+    const fmtSheet = sheet('text-aa', 'تنسيق', 'تنسيق النص والفقرة'), moreSheet = sheet('dots-three', 'المزيد', 'إدراج، ومعاينة السطر');
+    moreSheet.body.classList.add('tb-more');
+    // its tools act once (insert, switch): the sheet closes after them; the table's size panel keeps it open meanwhile
+    moreSheet.body.addEventListener('click', (e) => { const b = e.target.closest('.tb'); if (b && !b.hasAttribute('aria-haspopup')) closeSheets(); });
+    function closeSheets() { fmtSheet.d.open = false; moreSheet.d.open = false; }
+    const phoneRow = document.createElement('div'); phoneRow.className = 'tb-phone';
+
+    // wide: two rows that sit side by side when the pane is wide (the text's look, then the paragraph, inserts and
+    // undo); phones: the row and its two sheets. The same buttons move between them, so their state stays one.
     const row = (...groups) => { const r = document.createElement('div'); r.className = 'tb-row'; r.append(...groups); return r; };
-    bar.replaceChildren(row(style, fmt), row(list, align, ins, again, hist));
+    let laidOut = null;
+    const arrange = () => {
+      const p = phone();
+      if (p === laidOut) return;
+      laidOut = p; closePop(); closeSheets();
+      if (p) {
+        fmtSheet.body.replaceChildren(style, fmt, list, align);
+        ins.replaceChildren(...insOwn.filter((n) => n !== flagBtn));
+        moreSheet.body.replaceChildren(ins, eyeBtn);
+        phoneRow.replaceChildren(undoBtn, redoBtn, fmtSheet.d, flagBtn, rereadBtn, moreSheet.d);
+        bar.replaceChildren(phoneRow);
+      } else {
+        ins.replaceChildren(...insOwn); again.replaceChildren(rereadBtn, eyeBtn); hist.replaceChildren(undoBtn, redoBtn);
+        bar.replaceChildren(row(style, fmt), row(list, align, ins, again, hist));
+      }
+    };
+    arrange();
+    window.addEventListener('resize', arrange);
 
     // ---- the floating bar
     const float = document.createElement('div');
