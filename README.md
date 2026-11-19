@@ -166,8 +166,8 @@ address that any web request carries, these requests include nothing about the u
 
 ## Code signing policy
 
-The Windows installer will be signed for free through SignPath once the project's application is approved; releases up to
-1.0.1 are unsigned. Signed releases carry this attribution: Free code signing provided by [SignPath.io](https://about.signpath.io),
+The Windows installer will be signed for free through SignPath once the project's application is approved. Until
+then, releases are unsigned. Signed releases carry this attribution: Free code signing provided by [SignPath.io](https://about.signpath.io),
 certificate by [SignPath Foundation](https://signpath.org).
 
 - Committers and reviewers: [eyasbzour](https://github.com/eyasbzour)
