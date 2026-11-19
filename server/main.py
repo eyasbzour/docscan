@@ -404,6 +404,8 @@ def delete_template(tpl_id: str, admin_token: str = ""):
     _check_admin(admin_token)
     if not TPL_RE.match(tpl_id):
         _err(400, "معرف قالب غير صالح")
+    if tpl_id == "plain":  # ships with the program and the server image; the page offers no delete for it
+        _err(400, "القالب المدمج لا يُحذف")
     for ext in (".docx", ".json"):
         p = TEMPLATES / f"{tpl_id}{ext}"
         if p.exists():

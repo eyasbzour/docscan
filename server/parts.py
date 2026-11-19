@@ -99,6 +99,6 @@ def _run() -> None:
     except _Stopped:
         _state.update(state="idle", done=0, total=0, error="")
     except Exception as e:
-        _state.update(state="error", error=f"تعذر تنزيل القرّاء الإضافية: {e}")
+        _state.update(state="error", error=f"تعذر تنزيل القرّاء الإضافيين: {e}")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)

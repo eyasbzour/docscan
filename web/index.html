@@ -295,13 +295,14 @@
 
 <!-- ============================ SETTINGS ============================ -->
 <dialog id="dlgSettings" aria-labelledby="setTitle">
-  <form method="dialog" class="dlg">
+  <form method="dialog" class="dlg scrolls">
     <div class="dlg-head">
       <h2 id="setTitle">الإعدادات</h2>
       <button class="btn ghost small icon-only" value="cancel" formnovalidate aria-label="إغلاق">
         <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#x"/></svg>
       </button>
     </div>
+    <div class="dlg-body">
     <div class="field">
       <span id="setThemeHead">المظهر</span>
       <div class="seg theme-seg" id="setTheme" role="group" aria-labelledby="setThemeHead">
@@ -320,7 +321,7 @@
     </fieldset>
     <!-- the Windows program only, while Nuqta and EasyOCR are not installed -->
     <fieldset id="partsBox" class="hidden">
-      <legend>القرّاء الإضافية</legend>
+      <legend>القرّاء الإضافيون</legend>
       <div class="set-row">
         <p class="muted small-print" id="partsInfo" role="status"></p>
         <button class="btn small" id="btnParts" type="button">
@@ -329,7 +330,7 @@
       </div>
     </fieldset>
     <fieldset id="adminBox">
-      <legend>قوالب الترويسة</legend>
+      <legend id="tplHead">قوالب الترويسة</legend>
       <ul id="tplList" class="tpl-list"></ul>
       <button class="btn small" id="btnTplNew" type="button">
         <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#plus"/></svg><span>إضافة قالب جديد</span>
@@ -347,6 +348,7 @@
       <!-- a new window: the Windows program opens it in the browser (pywebview) -->
       <p class="muted small-print credit">تطوير: <a href="https://github.com/eyasbzour?tab=repositories" target="_blank" rel="noopener" dir="ltr">eyasbzour</a></p>
     </fieldset>
+    </div>
     <!-- every field saves as it changes, like the theme -->
     <div class="dlg-actions">
       <button class="btn primary" value="done" formnovalidate>تم</button>

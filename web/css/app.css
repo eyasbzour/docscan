@@ -493,9 +493,6 @@ dialog { border: 1px solid var(--line); border-radius: var(--r-panel); padding: 
 dialog::backdrop { background: oklch(18% 0.01 255 / .3); }
 .dlg { padding: 1.25rem 1.5rem 1.5rem; display: grid; gap: 1.1rem; max-height: 88dvh; overflow: auto; }
 .dlg-head { display: flex; align-items: center; justify-content: space-between; }
-/* a long dialog scrolls between its title and its buttons: both stay, so close is never out of reach */
-.dlg > .dlg-head { position: sticky; top: -1.25rem; z-index: 1; margin: -1.25rem -1.5rem 0; padding: 1rem 1.5rem .75rem;
-  background: var(--surface); border-bottom: 1px solid var(--line); }
 .dlg-head h2 { font-size: var(--fs-lg); }
 fieldset { border: 0; border-top: 1px solid var(--line); margin: 0; padding: 1rem 0 0; display: grid; gap: .8rem; }
 legend { font-weight: 700; padding: 0 .5rem 0 0; font-size: var(--fs-base); }
@@ -507,11 +504,21 @@ fieldset > .btn { justify-self: start; }  /* a rare action, not a field: its own
 .dlg-actions { display: flex; gap: .5rem; padding-top: .25rem; }
 .dlg > .dlg-actions { position: sticky; bottom: -1.5rem; margin: 0 -1.5rem -1.5rem; padding: .75rem 1.5rem; background: var(--surface); border-top: 1px solid var(--line); }
 .ask-dlg .dlg > .dlg-actions { position: static; margin: 0; padding: .25rem 0 0; border: 0; }
+/* a long dialog: only its middle scrolls, so the title (with its close), the buttons and the scrollbar's own
+   track stay between them */
+.dlg.scrolls { display: flex; flex-direction: column; gap: 0; padding: 0; overflow: hidden; }
+.dlg.scrolls > .dlg-head { padding: 1rem 1.5rem .75rem; border-bottom: 1px solid var(--line); }
+.dlg.scrolls > .dlg-body { flex: 1; min-height: 0; overflow: auto; display: grid; gap: 1.1rem; padding: 1.1rem 1.5rem 1.25rem; }
+.dlg.scrolls > .dlg-actions { position: static; margin: 0; padding: .75rem 1.5rem; border-top: 1px solid var(--line); }
 .ask-dlg { width: min(26rem, 92vw); }
 .ask-dlg .dlg { padding: 1.4rem 1.5rem 1.25rem; gap: 1.25rem; }
 .ask-text { margin: 0; font-size: var(--fs-base); line-height: 1.75; }
-.tpl-list { list-style: none; padding: 0; margin: 0; display: grid; gap: 2px; }
-.tpl-list li { display: flex; justify-content: space-between; align-items: center; gap: .5rem; padding: .3rem .5rem; border-radius: var(--r-ctl); font-size: var(--fs-sm); background: var(--sunken); }
+/* a plain list, one hairline between rows: ten templates read as a list, not ten cards */
+.tpl-list { list-style: none; padding: 0; margin: 0; }
+.tpl-list li { display: flex; justify-content: space-between; align-items: center; gap: .5rem; min-height: 2.4rem; font-size: var(--fs-sm); }
+.tpl-list li + li { border-top: 1px solid var(--line); }
+.tpl-list .builtin { color: var(--muted); font-size: var(--fs-xs); padding-inline: .65rem; }
+.tpl-list .danger:not(:hover):not(:focus-visible) { color: var(--muted); }  /* red only when it is about to act */
 
 .note-pop { position: fixed; z-index: 50; width: min(22rem, 92vw); background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); padding: .85rem; box-shadow: var(--shadow-2); display: grid; gap: .55rem; animation: pop-in .16s var(--ease); }
 .note-actions { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }

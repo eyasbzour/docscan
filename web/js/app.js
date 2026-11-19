@@ -617,9 +617,9 @@
       return;
     }
     const mb = (n) => Math.round(n / 1048576).toLocaleString('en');
-    if (st.state === 'unpacking') { $('partsText').textContent = 'فك ضغط القرّاء الإضافية…'; prog.removeAttribute('value'); }
-    else if (st.total) { $('partsText').textContent = `تنزيل القرّاء الإضافية… ${mb(st.done)} من ${mb(st.total)} ميجابايت`; prog.value = st.done / st.total; }
-    else { $('partsText').textContent = 'تنزيل القرّاء الإضافية…'; prog.removeAttribute('value'); }
+    if (st.state === 'unpacking') { $('partsText').textContent = 'فك ضغط القرّاء الإضافيين…'; prog.removeAttribute('value'); }
+    else if (st.total) { $('partsText').textContent = `تنزيل القرّاء الإضافيين… ${mb(st.done)} من ${mb(st.total)} ميجابايت`; prog.value = st.done / st.total; }
+    else { $('partsText').textContent = 'تنزيل القرّاء الإضافيين…'; prog.removeAttribute('value'); }
     showPartsBox();
     setTimeout(watchParts, 1000);
   }
@@ -1193,8 +1193,11 @@
     $('templateSel').replaceChildren(...TEMPLATES.map((t) => el('option', { value: t.id }, t.name)),
       el('option', { value: '__add' }, '+ إضافة قالب جديد…'));
     if (draft) $('templateSel').value = draft.template || '';
-    $('tplList').replaceChildren(...TEMPLATES.map((t) => el('li', null, t.name,
-      el('button', { type: 'button', class: 'btn ghost small danger', onclick: () => deleteTemplate(t) }, 'حذف'))));
+    $('tplHead').textContent = `قوالب الترويسة (${TEMPLATES.length})`;
+    // the plain template ships with the program (it comes back at every start), so it is not offered for deleting
+    $('tplList').replaceChildren(...TEMPLATES.map((t) => el('li', null, t.name, t.id === 'plain'
+      ? el('span', { class: 'builtin' }, 'مدمج')
+      : el('button', { type: 'button', class: 'btn ghost small danger', onclick: () => deleteTemplate(t) }, 'حذف'))));
   }
   async function reloadTemplates() {
     const tpl = await api('/api/templates'); TEMPLATES = tpl.templates; TPL_ADMIN = tpl.adminRequired; fillTemplateSelect();
