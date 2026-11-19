@@ -94,6 +94,16 @@ def update_status():
     return updater.status() if DESKTOP else {"current": None, "checked": True, "update": None}
 
 
+@app.post("/api/update/check")
+def update_check():
+    if not DESKTOP:
+        return update_status()
+    try:
+        return updater.check_now()
+    except Exception:
+        return JSONResponse({"error": "تعذر الاتصال بـ GitHub. تأكد من الاتصال بالإنترنت."}, status_code=502)
+
+
 @app.post("/api/update/install")
 async def update_install():
     if not DESKTOP:

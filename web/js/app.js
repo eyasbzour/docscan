@@ -101,20 +101,39 @@
 
   // ------------------------------------------------------------------ boot
   // the Windows program checks GitHub for a newer version at start (server/updater.py); a quiet bar offers it
+  let appVersion;  // the Windows program's version; null on a server (no updates there), undefined until asked
   async function checkUpdate(tries = 4) {
     let st;
     try { st = await api('/api/update'); } catch (e) { return; }  // offline or an older server: nothing to show
+    appVersion = st.current;
     if (!st.checked && tries > 0) { setTimeout(() => checkUpdate(tries - 1), 4000); return; }
-    if (!st.update || store.get('skipUpdate') === st.update.version) return;
-    $('updateText').textContent = `يتوفر إصدار جديد من البرنامج (${st.update.version}).`;
+    if (st.update && store.get('skipUpdate') !== st.update.version) showUpdate(st.update);
+  }
+  function showUpdate(u) {
+    $('updateText').textContent = `يتوفر إصدار جديد من البرنامج (${u.version}).`;
     $('updateBar').classList.remove('hidden');
-    $('updateLater').onclick = () => { $('updateBar').classList.add('hidden'); store.set('skipUpdate', st.update.version); };
+    $('updateLater').onclick = () => { $('updateBar').classList.add('hidden'); store.set('skipUpdate', u.version); };
     $('btnUpdate').onclick = async () => {
-      if (!(await ask(`سيُنزَّل الإصدار ${st.update.version} ويُثبَّت، ثم يُفتح البرنامج من جديد. يُحفظ عملك أولاً.`, { ok: 'تحديث' }))) return;
+      if (!(await ask(`سيُنزَّل الإصدار ${u.version} ويُثبَّت، ثم يُفتح البرنامج من جديد. يُحفظ عملك أولاً.`, { ok: 'تحديث' }))) return;
       if (draft && dirty) await saveDraft();
       $('btnUpdate').disabled = true; $('updateText').textContent = 'جارٍ تنزيل التحديث… سيُغلق البرنامج ويُفتح من جديد.';
       try { await api('/api/update/install', { method: 'POST' }); } catch (e) { toast(e.message, true); $('btnUpdate').disabled = false; }
     };
+  }
+  // Settings > Updates: asked for, so a version put off with "later" is offered again
+  async function checkUpdateNow() {
+    const btn = $('btnCheckUpdate');
+    btn.disabled = true; $('updateInfo').textContent = 'جارٍ التحقق…';
+    try {
+      const st = await api('/api/update/check', { method: 'POST' });
+      if (st.update) {
+        $('updateInfo').textContent = `يتوفر الإصدار ${st.update.version}. اضغط «تحديث الآن» في الشريط أعلى الصفحة.`;
+        showUpdate(st.update);
+      } else {
+        $('updateInfo').textContent = `لديك أحدث إصدار (${st.current}).`;
+      }
+    } catch (e) { $('updateInfo').textContent = e.message; }
+    btn.disabled = false;
   }
 
   async function boot() {
@@ -1152,7 +1171,14 @@
     showTheme();
     $('setAuthor').value = settings.author; $('setClaude').value = settings.claudeKey;
     $('setGoogle').value = settings.googleKey; $('setRemember').checked = settings.remember;
+    showUpdateBox();
+    // opened before the start-up check asked (it waits a moment): ask now
+    if (appVersion === undefined) api('/api/update').then((st) => { appVersion = st.current; showUpdateBox(); }).catch(() => {});
     fillTemplateSelect(); $('dlgSettings').showModal();
+  }
+  function showUpdateBox() {
+    $('updateBox').classList.toggle('hidden', !appVersion);
+    if (appVersion) $('updateInfo').textContent = `الإصدار الحالي: ${appVersion}`;
   }
   function saveSettings() {
     const keep = $('setRemember').checked;
@@ -1173,6 +1199,7 @@
     $('btnBack').onclick = () => { location.hash = ''; };
     $('btnSettings').onclick = openSettings;
     $('btnSettingsSave').onclick = saveSettings;
+    $('btnCheckUpdate').onclick = checkUpdateNow;
     document.querySelectorAll('#setTheme button').forEach((b) => { b.onclick = () => { DocTheme.set(b.dataset.pick); showTheme(); }; });
     $('btnTplAdd').onclick = addTemplate;
     $('btnTplNew').onclick = () => openTemplateAdd(false);

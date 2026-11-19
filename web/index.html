@@ -305,6 +305,14 @@
       <label class="field">مفتاح Google Vision<input id="setGoogle" type="password" autocomplete="off" dir="ltr"></label>
       <label class="check"><input type="checkbox" id="setRemember"> تذكر المفاتيح على هذا الجهاز</label>
     </fieldset>
+    <!-- the Windows program only: it also checks by itself at start -->
+    <fieldset id="updateBox" class="hidden">
+      <legend>التحديثات</legend>
+      <p class="muted small-print" id="updateInfo" role="status"></p>
+      <button class="btn small" id="btnCheckUpdate" type="button">
+        <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-clockwise"/></svg><span>التحقق من التحديثات</span>
+      </button>
+    </fieldset>
     <fieldset id="adminBox">
       <legend>قوالب الترويسة</legend>
       <ul id="tplList" class="tpl-list"></ul>
