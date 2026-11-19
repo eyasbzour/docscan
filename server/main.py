@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, File, Form, HTTPException, Request, UploadFile
-from fastapi.responses import FileResponse, JSONResponse, Response
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from PIL import Image, ImageOps
 from starlette.concurrency import run_in_threadpool
@@ -25,6 +25,7 @@ from starlette.concurrency import run_in_threadpool
 import convert
 import engines
 import parts
+import remote
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("DOCSCAN_DATA", ROOT / "data"))
@@ -75,6 +76,28 @@ async def password_gate(request: Request, call_next):
         if not ok:
             return Response(status_code=401, headers={"WWW-Authenticate": 'Basic realm="DocScan"'})
     return await call_next(request)
+
+
+# ------------------------------------------------------------------ use on phone (remote.py)
+# what a phone may reach before signing in: the sign-in page and what it draws with
+PHONE_OPEN = ("/phone.html", "/api/remote/login", "/css/app.css", "/js/theme.js", "/vendor/icons.svg")
+PC_ONLY = ("/api/remote", "/api/update", "/api/parts", "/api/restart")  # the program's own controls
+
+
+@app.middleware("http")
+async def phone_gate(request: Request, call_next):
+    if not remote.is_remote(request.scope):
+        return await call_next(request)
+    path = request.url.path
+    if path in PHONE_OPEN:
+        return await call_next(request)
+    if path.startswith(PC_ONLY):
+        return JSONResponse({"error": "هذا متاح على الحاسوب فقط"}, status_code=403)
+    if remote.signed_in(request.cookies.get(remote.COOKIE)):
+        return await call_next(request)
+    if path.startswith("/api/"):
+        return JSONResponse({"error": "انتهت الجلسة. افتح الرابط من جديد وسجّل الدخول."}, status_code=401)
+    return RedirectResponse("/phone.html", status_code=303)
 
 
 def _err(status: int, msg: str):
@@ -151,15 +174,61 @@ def parts_install():
 
 
 # ------------------------------------------------------------------ engines + OCR
+@app.get("/api/remote")
+def remote_status():
+    if not remote.offered():
+        return JSONResponse({"error": "الاستخدام على الهاتف متاح في برنامج ويندوز فقط"}, status_code=404)
+    st = remote.status()
+    if st["state"] == "on":
+        import segno
+
+        # dark on light whatever the theme: phone cameras read it that way
+        st["qr"] = segno.make(st["url"], error="m").svg_inline(scale=5, border=2, dark="#14161a", light="#fdfdfd")
+        st["shown"] = st["password"][:4] + " " + st["password"][4:]
+    return st
+
+
+@app.post("/api/remote/start")
+def remote_start():
+    if not remote.offered():
+        return JSONResponse({"error": "الاستخدام على الهاتف متاح في برنامج ويندوز فقط"}, status_code=404)
+    remote.start(app)
+    return remote_status()
+
+
+@app.post("/api/remote/stop")
+def remote_stop():
+    remote.stop()
+    return remote_status()
+
+
+@app.post("/api/remote/login")
+async def remote_login(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        body = {}
+    try:
+        token = remote.login(str(body.get("password", "")))
+    except PermissionError:
+        return JSONResponse({"error": "محاولات كثيرة. انتظر دقيقة ثم حاول من جديد."}, status_code=429)
+    if not token:
+        return JSONResponse({"error": "كلمة المرور غير صحيحة."}, status_code=401)
+    res = JSONResponse({"ok": True})
+    # the phone reaches it over https (the tunnel), so the cookie is Secure; it lasts while the browser is open
+    res.set_cookie(remote.COOKIE, token, httponly=True, secure=True, samesite="lax", path="/")
+    return res
+
+
 @app.get("/api/engines")
-def list_engines():
+def list_engines(request: Request):
     out = []
     for e in engines.ENGINES:
         ok, why = engines.availability(e["id"])
         server_key = bool((e["key"] == "claude" and os.environ.get("ANTHROPIC_API_KEY")) or
                           (e["key"] == "google" and os.environ.get("GOOGLE_VISION_API_KEY")))
         # Nuqta and EasyOCR come as one download in the Windows program (parts.py)
-        installable = not ok and e["id"] in ("nuqta", "easyocr") and parts.offered()
+        installable = not ok and e["id"] in ("nuqta", "easyocr") and parts.offered() and not remote.is_remote(request.scope)
         if installable and parts.status()["state"] == "restart":
             installable, why = False, "اكتمل التنزيل. أعد تشغيل البرنامج ليعمل هذا القارئ."
         out.append({**e, "available": ok, "reason": why, "serverKey": server_key, "installable": installable})

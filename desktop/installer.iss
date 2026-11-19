@@ -98,6 +98,8 @@ Filename: "{app}\python\pythonw.exe"; Parameters: """{app}\app\desktop\app.py"""
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{app}\parts"
+; cloudflared.exe, downloaded the first time the program is used on a phone (server/remote.py)
+Type: filesandordirs; Name: "{app}\bin"
 Type: filesandordirs; Name: "{app}\models"
 
 [Code]

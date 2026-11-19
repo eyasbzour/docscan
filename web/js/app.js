@@ -120,6 +120,34 @@
       try { await api('/api/update/install', { method: 'POST' }); } catch (e) { toast(e.message, true); $('btnUpdate').disabled = false; }
     };
   }
+  // use on phone (the Windows program, on the PC; server/remote.py): the top bar's button shows while the link is open
+  let phoneTimer = null;
+  async function checkPhone() {
+    try { showPhone(await api('/api/remote')); $('btnPhone').classList.remove('hidden'); }
+    catch (e) { /* a server, or the phone itself: no button */ }
+  }
+  async function refreshPhone() {
+    try { showPhone(await api('/api/remote')); } catch (e) { /* the program is closing */ }
+  }
+  async function phoneAction(path) {
+    try { showPhone(await api(path, { method: 'POST' })); } catch (e) { toast(e.message, true); }
+  }
+  function showPhone(st) {
+    const on = st.state === 'on', busy = st.state === 'starting', show = (id, yes) => $(id).classList.toggle('hidden', !yes);
+    $('btnPhone').classList.toggle('live', on);
+    $('btnPhone').querySelector('span').textContent = on ? 'على الهاتف: يعمل' : 'على الهاتف';
+    show('phoneOff', !on && !busy); show('phoneBusy', busy); show('phoneOn', on);
+    show('phoneError', st.state === 'error'); $('phoneError').textContent = st.error || '';
+    show('phoneStart', !on && !busy); $('phoneStart').textContent = st.state === 'error' ? 'إعادة المحاولة' : 'تشغيل';
+    show('phoneStop', on || busy);
+    if (on) { $('phoneQr').innerHTML = st.qr; $('phoneUrl').textContent = st.url; $('phonePw').textContent = st.shown; }
+    clearTimeout(phoneTimer);  // quick while it starts; now and then while open, so the button stays true
+    if (busy || on) phoneTimer = setTimeout(refreshPhone, busy ? 1000 : 15000);
+  }
+  function copyText(id) {
+    navigator.clipboard.writeText($(id).textContent).then(() => toast('نُسخ.'), () => toast('تعذر النسخ.', true));
+  }
+
   // Settings > Updates: asked for, so a version put off with "later" is offered again
   async function checkUpdateNow() {
     const btn = $('btnCheckUpdate');
@@ -152,6 +180,7 @@
     route();
     setTimeout(() => checkUpdate(), 2500);
     watchParts(true);  // a download still running after a reload, or a restart it is waiting for
+    checkPhone();
     window.addEventListener('hashchange', route);
   }
 
@@ -1267,6 +1296,11 @@
     for (const id of ['setAuthor', 'setClaude', 'setGoogle']) $(id).addEventListener('input', saveSettings);
     $('setRemember').addEventListener('change', saveSettings);
     $('btnParts').onclick = () => { $('dlgSettings').close(); offerParts('nuqta'); };
+    $('btnPhone').onclick = () => { refreshPhone(); $('dlgPhone').showModal(); };
+    $('phoneStart').onclick = () => phoneAction('/api/remote/start');
+    $('phoneStop').onclick = () => phoneAction('/api/remote/stop');
+    $('copyUrl').onclick = () => copyText('phoneUrl');
+    $('copyPw').onclick = () => copyText('phonePw');
     $('partsRetry').onclick = startParts;
     $('partsStop').onclick = () => api('/api/parts/stop', { method: 'POST' }).then(() => toast('أُوقف التنزيل.')).catch((e) => toast(e.message, true));
     $('partsClose').onclick = () => $('partsBar').classList.add('hidden');

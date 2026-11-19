@@ -164,6 +164,10 @@ The Windows program also connects to GitHub. At start it asks this repository fo
 and it downloads the installer or the optional readers from those releases only when the user chooses to. Apart from the
 address that any web request carries, these requests include nothing about the user or their documents.
 
+Using the program on a phone is off until the user turns it on. Then the pages and photos the phone opens pass, encrypted,
+through Cloudflare's free tunnel service (the program downloads Cloudflare's `cloudflared.exe` for it the first time). The
+link and its password are new each time, and stopping it, or closing the program, ends both.
+
 ## Code signing policy
 
 The Windows installer will be signed for free through SignPath once the project's application is approved. Until

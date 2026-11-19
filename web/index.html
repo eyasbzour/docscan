@@ -16,6 +16,10 @@
     <span class="brand-name">تحويل الوثائق المصوّرة إلى مستندات</span>
   </button>
   <div class="topbar-actions">
+    <!-- the Windows program, on the PC: its pages on a phone (server/remote.py) -->
+    <button class="btn ghost hidden" id="btnPhone" type="button">
+      <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#device-mobile"/></svg><span>على الهاتف</span>
+    </button>
     <button class="btn ghost" id="btnSettings" type="button">
       <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#gear"/></svg><span>الإعدادات</span>
     </button>
@@ -352,6 +356,40 @@
     <!-- every field saves as it changes, like the theme -->
     <div class="dlg-actions">
       <button class="btn primary" value="done" formnovalidate>تم</button>
+    </div>
+  </form>
+</dialog>
+
+<!-- use on phone: a link and a password, new each time (server/remote.py) -->
+<dialog id="dlgPhone" aria-labelledby="phoneTitle">
+  <form method="dialog" class="dlg">
+    <div class="dlg-head">
+      <h2 id="phoneTitle">استخدام البرنامج على الهاتف</h2>
+      <button class="btn ghost small icon-only" value="cancel" formnovalidate aria-label="إغلاق">
+        <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#x"/></svg>
+      </button>
+    </div>
+    <div id="phoneOff" class="phone-text">
+      <p>افتح البرنامج من متصفح الهاتف وتابع العمل على المسودات نفسها، من أي مكان. يعمل الرابط ما دام البرنامج مفتوحاً على هذا الحاسوب.</p>
+      <p class="muted small-print">يمر الاتصال مشفّراً عبر خدمة Cloudflare. الرابط وكلمة المرور جديدان في كل مرة، ولا يدخل أحد من دون كلمة المرور.</p>
+    </div>
+    <p id="phoneBusy" class="muted hidden" role="status">جارٍ تجهيز الاتصال… قد يستغرق ذلك دقيقة في المرة الأولى.</p>
+    <p id="phoneError" class="phone-error hidden" role="alert"></p>
+    <div id="phoneOn" class="phone-on hidden">
+      <div class="qr" id="phoneQr" role="img" aria-label="رمز QR للرابط"></div>
+      <ol class="phone-steps">
+        <li>امسح الرمز بكاميرا الهاتف، أو افتح هذا الرابط:
+          <span class="copy-row"><code id="phoneUrl" dir="ltr"></code>
+            <button class="btn small" type="button" id="copyUrl"><svg class="i" aria-hidden="true"><use href="vendor/icons.svg#copy"/></svg><span>نسخ</span></button></span></li>
+        <li>اكتب كلمة المرور:
+          <span class="copy-row"><code id="phonePw" class="pw" dir="ltr"></code>
+            <button class="btn small" type="button" id="copyPw"><svg class="i" aria-hidden="true"><use href="vendor/icons.svg#copy"/></svg><span>نسخ</span></button></span></li>
+      </ol>
+    </div>
+    <div class="dlg-actions">
+      <button class="btn primary" type="button" id="phoneStart">تشغيل</button>
+      <button class="btn danger hidden" type="button" id="phoneStop">إيقاف</button>
+      <button class="btn ghost" value="done" formnovalidate>تم</button>
     </div>
   </form>
 </dialog>

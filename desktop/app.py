@@ -240,6 +240,12 @@ def main() -> None:
     # the window is closed: stop the server and leave nothing running (readers may hold threads)
     if state.get("server"):
         state["server"].should_exit = True
+    try:  # the phone's link (server/remote.py): its cloudflared would outlive this process
+        import remote
+
+        remote.stop()
+    except Exception:
+        traceback.print_exc()
     print("closed")
     log.flush()
     os._exit(0)
