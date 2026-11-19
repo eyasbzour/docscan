@@ -1,0 +1,111 @@
+# Builds the Windows program folder (build\DocScan) that the installer (desktop\installer.iss) packs.
+#   .\desktop\build.ps1 -Version 1.0.0            base program: Tesseract + PaddleOCR (Tesseract from $env:TESSERACT_DIR
+#                                                 or C:\Program Files\Tesseract-OCR; the GitHub workflow installs it)
+#   .\desktop\build.ps1 -Version 1.0.0 -Parts     also the optional readers, as zips the installer downloads:
+#                                                 build\out\DocScan-part-heavy.zip and DocScan-part-nuqta-model.zip
+# Needs internet (Python, packages, models). The ministry letterhead template is never included.
+param(
+    [string]$Version = "0.0.0",
+    [switch]$Parts,
+    [switch]$SkipTesseract
+)
+$ErrorActionPreference = "Stop"
+$ProgressPreference = "SilentlyContinue"  # Invoke-WebRequest is many times slower with its progress bar
+$Repo = Split-Path -Parent $PSScriptRoot
+$Build = Join-Path $Repo "build"
+$Dist = Join-Path $Build "DocScan"
+$Out = Join-Path $Build "out"
+$PyVersion = "3.12.10"
+$Py = Join-Path $Dist "python\python.exe"
+
+function Step($text) { Write-Host "== $text" }
+
+Step "clean"
+Remove-Item -Recurse -Force $Dist, $Out -ErrorAction SilentlyContinue
+New-Item -ItemType Directory -Force $Dist, $Out | Out-Null
+
+Step "Python $PyVersion (embeddable)"
+$zip = Join-Path $Build "python-embed.zip"
+if (-not (Test-Path $zip)) {
+    Invoke-WebRequest "https://www.python.org/ftp/python/$PyVersion/python-$PyVersion-embed-amd64.zip" -OutFile $zip
+}
+Expand-Archive $zip (Join-Path $Dist "python")
+# let it use site-packages (the embeddable build ignores them by default)
+$pth = Get-ChildItem (Join-Path $Dist "python") -Filter "python*._pth" | Select-Object -First 1
+(Get-Content $pth.FullName) -replace '^#\s*import site', 'import site' | Set-Content $pth.FullName -Encoding ascii
+Add-Content $pth.FullName "Lib\site-packages"
+$getpip = Join-Path $Build "get-pip.py"
+if (-not (Test-Path $getpip)) { Invoke-WebRequest "https://bootstrap.pypa.io/get-pip.py" -OutFile $getpip }
+& $Py $getpip --no-warn-script-location -q
+if ($LASTEXITCODE) { throw "pip" }
+
+Step "packages"
+# setuptools first: some packages (pywebview's proxy_tools) ship as source, built on install
+& $Py -m pip install --no-warn-script-location -q setuptools wheel
+& $Py -m pip install --no-warn-script-location -q -r (Join-Path $PSScriptRoot "requirements.txt")
+if ($LASTEXITCODE) { throw "packages" }
+
+Step "the app"
+$App = Join-Path $Dist "app"
+New-Item -ItemType Directory -Force (Join-Path $App "templates"), (Join-Path $App "desktop") | Out-Null
+robocopy (Join-Path $Repo "server") (Join-Path $App "server") /E /XD __pycache__ tests .pytest_cache /NFL /NDL /NJH /NJS | Out-Null
+robocopy (Join-Path $Repo "web") (Join-Path $App "web") /E /NFL /NDL /NJH /NJS | Out-Null
+Copy-Item (Join-Path $Repo "templates\plain.*") (Join-Path $App "templates")  # only the plain template, never the letterhead
+Copy-Item (Join-Path $PSScriptRoot "app.py") (Join-Path $App "desktop")
+Set-Content (Join-Path $App "desktop\VERSION") $Version -Encoding ascii
+& $Py (Join-Path $PSScriptRoot "make_icon.py") (Join-Path $Dist "docscan.ico")
+
+if (-not $SkipTesseract) {
+    Step "Tesseract"
+    $tsrc = if ($env:TESSERACT_DIR) { $env:TESSERACT_DIR } else { "C:\Program Files\Tesseract-OCR" }
+    if (-not (Test-Path (Join-Path $tsrc "tesseract.exe"))) { throw "Tesseract not found in $tsrc" }
+    $tdst = Join-Path $Dist "tesseract"
+    robocopy $tsrc $tdst /E /XD tessdata /NFL /NDL /NJH /NJS | Out-Null
+    foreach ($m in "fast", "standard", "best") {
+        $dir = Join-Path $tdst "tessdata\$m"
+        New-Item -ItemType Directory -Force $dir | Out-Null
+        $repoName = if ($m -eq "standard") { "tessdata" } else { "tessdata_$m" }
+        foreach ($l in "ara", "eng") {
+            Invoke-WebRequest "https://raw.githubusercontent.com/tesseract-ocr/$repoName/main/$l.traineddata" -OutFile (Join-Path $dir "$l.traineddata")
+        }
+    }
+}
+
+Step "PaddleOCR models (Arabic and English)"
+$env:PADDLE_PDX_CACHE_HOME = Join-Path $Dist "models\paddlex"
+Push-Location (Join-Path $App "server")
+& $Py -c "import sys; sys.path.insert(0, '.'); from engines import paddle_engine as e; e._get('ar'); e._get('en'); print('paddle models ready')"
+if ($LASTEXITCODE) { throw "paddle models" }
+Pop-Location
+
+if ($Parts) {
+    Step "optional readers: torch (CPU), EasyOCR, Nuqta"
+    $heavy = Join-Path $Build "parts\heavy"
+    $site = Join-Path $heavy "site-packages"
+    Remove-Item -Recurse -Force $heavy -ErrorAction SilentlyContinue
+    # one install, so torch is resolved once (a second --target install would fetch it again); CPU wheels
+    & $Py -m pip install --no-warn-script-location -q --target $site torch torchvision -r (Join-Path $PSScriptRoot "requirements-heavy.txt") `
+        --extra-index-url https://download.pytorch.org/whl/cpu
+    if ($LASTEXITCODE) { throw "heavy readers" }
+    # their models, through the engine code itself (same models and settings as when reading)
+    $models = Join-Path $Build "parts\models"
+    Remove-Item -Recurse -Force $models -ErrorAction SilentlyContinue
+    $env:EASYOCR_MODELS = Join-Path $models "easyocr"
+    $env:HF_HOME = Join-Path $models "hf"
+    $env:PYTHONPATH = $site
+    Push-Location (Join-Path $App "server")
+    & $Py -c "import sys; sys.path.insert(0, '.'); from engines import easyocr_engine as e; e._get_reader(); print('easyocr models ready')"
+    if ($LASTEXITCODE) { throw "easyocr models" }
+    & $Py -c "import sys; sys.path.insert(0, '.'); from engines import nuqta_engine as e; e._get(); print('nuqta model ready')"
+    if ($LASTEXITCODE) { throw "nuqta model" }
+    Pop-Location
+    Remove-Item Env:PYTHONPATH
+    # the installer downloads this part only when the installed one is older (desktop\HEAVY_VERSION: bump it when
+    # requirements-heavy.txt or the models change)
+    Copy-Item (Join-Path $PSScriptRoot "HEAVY_VERSION") (Join-Path $heavy "VERSION")
+    # two release assets (each must stay under GitHub's 2 GB): the libraries, and the Nuqta model
+    tar -a -c -f (Join-Path $Out "DocScan-part-heavy.zip") -C $heavy site-packages VERSION
+    tar -a -c -f (Join-Path $Out "DocScan-part-models.zip") -C $models .
+}
+
+Step "done: $Dist"

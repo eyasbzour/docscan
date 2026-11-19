@@ -1,0 +1,5 @@
+# Optional readers (the installer's "Nuqta and EasyOCR" part, downloaded only when chosen). torch comes from
+# PyTorch's CPU-only index (build.ps1), about 1 GB less than the default CUDA build.
+easyocr>=1.7
+transformers>=5.23
+accelerate>=1.0
