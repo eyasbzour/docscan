@@ -585,7 +585,7 @@
       const h = img.naturalHeight * base * z, w = img.naturalWidth * base * z;
       img.style.margin = rot % 180 ? `${(w - h) / 2}px auto` : '0 auto';
     };
-    const fitted = () => { fit(); frame.classList.toggle('can-pan', frame.scrollWidth > frame.clientWidth + 1 || frame.scrollHeight > frame.clientHeight + 1); };
+    const fitted = () => { fit(); frame.classList.toggle('can-pan', frame.scrollWidth > frame.clientWidth + 1 || frame.scrollHeight > frame.clientHeight + 1); placeSel(); };
     if (img.complete && img.naturalWidth) fitted(); else img.onload = fitted;
   }
 
@@ -1153,16 +1153,102 @@
   function insertPicture() {
     const p = draft.pages[current];
     if (!p) { toast('أضف صورة الصفحة أولاً.', true); return; }
-    window.ImageEditor.open({
-      src: imgUrl(p), rotation: p.rotation || 0, pick: true,
-      onSave: async (blob, crop) => {
-        const fd = new FormData(); fd.append('file', blob, 'figure.jpg');
-        const r = await api(`/api/drafts/${draft.id}/images`, { method: 'POST', body: fd });
-        if (!pe) { p.blocks = p.blocks || []; renderEditor(); }
-        pe.insertBlock({ type: 'figure', attrs: { image: r.name, w: r.width, h: r.height, wFrac: +crop.w.toFixed(3), align: null } });
-        toast('أُدرجت الصورة. اضغطها لتغيير محاذاتها أو حذفها.');
-      }
+    window.ImageEditor.open({ src: imgUrl(p), rotation: p.rotation || 0, pick: true, onSave: (blob, crop) => insertFigure(blob, crop.w) });
+  }
+  // wFrac: the picture's share of the page width on the photo, so it comes out the same size on paper
+  async function insertFigure(blob, wFrac) {
+    const p = draft.pages[current];
+    const fd = new FormData(); fd.append('file', blob, 'figure.jpg');
+    const r = await api(`/api/drafts/${draft.id}/images`, { method: 'POST', body: fd });
+    if (!pe) { p.blocks = p.blocks || []; renderEditor(); }
+    pe.insertBlock({ type: 'figure', attrs: { image: r.name, w: r.width, h: r.height, wFrac: +wFrac.toFixed(3), align: null } });
+    toast('أُدرجت الصورة. اضغطها لتغيير محاذاتها أو حذفها.');
+  }
+
+  // Select on the photo: drag a box around a part of it, drag inside the box to move it, then copy it (to paste
+  // anywhere, the text too) or insert it in the text. The box is kept as fractions of the photo as shown (after
+  // its rotation), so zooming keeps it in place; another page or another rotation drops it.
+  let sel = null;  // { key, x0, y0, x1, y1 }
+  const selKey = () => { const p = draft && draft.pages[current]; return p ? p.image + '@' + (p.rotation || 0) : ''; };
+  function setSelecting(on) {
+    if (on && !(draft && draft.pages[current])) { toast('أضف صورة الصفحة أولاً.', true); return; }
+    $('photoFrame').classList.toggle('selecting', on);
+    $('btnSelect').setAttribute('aria-pressed', on);
+    if (!on) clearSel(); else if (!sel) toast('اسحب على الصورة حول الجزء المطلوب.');
+  }
+  function clearSel() { sel = null; $('selBox').classList.add('hidden'); }
+  function placeSel() {
+    const box = $('selBox');
+    if (!sel || sel.key !== selKey()) { clearSel(); return; }
+    const f = $('photoFrame'), r = $('photoImg').getBoundingClientRect(), fr = f.getBoundingClientRect();
+    const left = r.left - fr.left - f.clientLeft + f.scrollLeft + sel.x0 * r.width, top = r.top - fr.top - f.clientTop + f.scrollTop + sel.y0 * r.height;
+    Object.assign(box.style, { left: left + 'px', top: top + 'px', width: (sel.x1 - sel.x0) * r.width + 'px', height: (sel.y1 - sel.y0) * r.height + 'px' });
+    box.classList.remove('hidden');
+    // the bar above the box at its right edge; below it when there is no room above; over its top when the box
+    // fills the view; always inside the visible pane, however far the box runs out of it
+    const bar = $('selBar'), b = box.getBoundingClientRect(), w = bar.offsetWidth, h = bar.offsetHeight, gap = 8;
+    const view = { l: fr.left + f.clientLeft + gap, t: fr.top + f.clientTop + gap, r: fr.left + f.clientLeft + f.clientWidth - gap, b: fr.top + f.clientTop + f.clientHeight - gap };
+    const x = Math.max(view.l, Math.min(b.right - w, view.r - w));
+    const y = b.top - gap - h >= view.t ? b.top - gap - h : b.bottom + gap + h <= view.b ? b.bottom + gap : Math.max(view.t, b.top + gap);
+    bar.style.left = x - b.left - box.clientLeft + 'px'; bar.style.top = y - b.top - box.clientTop + 'px';
+  }
+  function initSelect() {
+    const f = $('photoFrame'), box = $('selBox');
+    $('btnSelect').onclick = () => setSelecting(!f.classList.contains('selecting'));
+    $('selCancel').onclick = clearSel;
+    $('selCopy').onclick = copySel;
+    $('selInsert').onclick = async () => {
+      const w = sel.x1 - sel.x0, blob = await new Promise((res) => cutSel().then((c) => c.toBlob(res, 'image/jpeg', 0.92)));
+      try { await insertFigure(blob, w); clearSel(); } catch (e) { toast(e.message, true); }
+    };
+    $('selBar').addEventListener('pointerdown', (e) => e.stopPropagation());
+    f.addEventListener('pointerdown', (e) => {
+      if (!f.classList.contains('selecting') || e.button !== 0) return;
+      const r = $('photoImg').getBoundingClientRect();
+      if (!r.width) return;
+      e.preventDefault(); f.setPointerCapture(e.pointerId);
+      const fx = (ev) => Math.min(1, Math.max(0, (ev.clientX - r.left) / r.width)), fy = (ev) => Math.min(1, Math.max(0, (ev.clientY - r.top) / r.height));
+      const x = fx(e), y = fy(e), moving = sel && box.contains(e.target), start = sel && { ...sel };
+      if (!moving) sel = { key: selKey(), x0: x, y0: y, x1: x, y1: y };
+      box.classList.add('moving');
+      const drag = new AbortController(), signal = drag.signal;
+      f.addEventListener('pointermove', (ev) => {
+        if (moving) {  // the whole box, kept on the photo
+          const dx = Math.min(1 - start.x1, Math.max(-start.x0, fx(ev) - x)), dy = Math.min(1 - start.y1, Math.max(-start.y0, fy(ev) - y));
+          Object.assign(sel, { x0: start.x0 + dx, x1: start.x1 + dx, y0: start.y0 + dy, y1: start.y1 + dy });
+        } else {
+          Object.assign(sel, { x0: Math.min(x, fx(ev)), x1: Math.max(x, fx(ev)), y0: Math.min(y, fy(ev)), y1: Math.max(y, fy(ev)) });
+        }
+        placeSel();
+      }, { signal });
+      const up = () => {
+        drag.abort(); box.classList.remove('moving');
+        if ((sel.x1 - sel.x0) * r.width < 8 || (sel.y1 - sel.y0) * r.height < 8) clearSel(); else placeSel();  // a click, not a drag
+      };
+      f.addEventListener('pointerup', up, { signal }); f.addEventListener('pointercancel', up, { signal });
     });
+    f.addEventListener('scroll', () => sel && placeSel(), { passive: true });  // keeps the bar's side right
+    document.addEventListener('keydown', (e) => {
+      if (e.key !== 'Escape' || !f.classList.contains('selecting') || document.querySelector('dialog[open]')) return;
+      if (sel) clearSel(); else setSelecting(false);
+    });
+  }
+  // the part at the photo's full resolution (as shown: rotated), at most 3000 pixels on its long side
+  async function cutSel() {
+    const p = draft.pages[current];
+    const full = window.ImageEditor._render(await createImageBitmap($('photoImg')), { rot90: p.rotation || 0, fine: 0, bright: 100, contrast: 100, gray: false });
+    const sx = sel.x0 * full.width, sy = sel.y0 * full.height, sw = (sel.x1 - sel.x0) * full.width, sh = (sel.y1 - sel.y0) * full.height;
+    const k = Math.min(1, 3000 / Math.max(sw, sh)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(sw * k)); c.height = Math.max(1, Math.round(sh * k));
+    c.getContext('2d').drawImage(full, sx, sy, sw, sh, 0, 0, c.width, c.height);
+    return c;
+  }
+  function copySel() {
+    if (!navigator.clipboard || !window.ClipboardItem) { toast('لا يسمح هذا المتصفح بنسخ الصور.', true); return; }
+    // the item is made now, with the click, and filled when the picture is ready (Safari needs it that way)
+    const png = cutSel().then((c) => new Promise((res) => c.toBlob(res, 'image/png')));
+    navigator.clipboard.write([new ClipboardItem({ 'image/png': png })])
+      .then(() => toast('نُسخ الجزء. الصقه في النص أو في أي برنامج (Ctrl+V).'), () => toast('تعذر النسخ.', true));
   }
   function flagSelection() {
     const m = pe && pe.flagSelection('');
@@ -1461,13 +1547,14 @@
     initSplitters();
     initCollapse();
     initPhotoPan();
+    initSelect();
   }
 
   // drag the photo to move around it when it is zoomed in or taller than the pane (touch scrolls natively)
   function initPhotoPan() {
     const f = $('photoFrame');
     f.addEventListener('pointerdown', (e) => {
-      if (e.pointerType === 'touch' || e.button !== 0 || !f.classList.contains('can-pan')) return;
+      if (e.pointerType === 'touch' || e.button !== 0 || !f.classList.contains('can-pan') || f.classList.contains('selecting')) return;
       e.preventDefault();
       f.setPointerCapture(e.pointerId); f.classList.add('panning');
       const x0 = e.clientX, y0 = e.clientY, left0 = f.scrollLeft, top0 = f.scrollTop;

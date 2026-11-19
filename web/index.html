@@ -195,6 +195,9 @@
         <button class="btn small" id="btnEditImg" type="button" title="تدوير، قص، تقويم، سطوع وتباين">
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#crop"/></svg><span>تحرير الصورة</span>
         </button>
+        <button class="btn small" id="btnSelect" type="button" aria-pressed="false" title="اسحب على الصورة حول جزء منها لنسخه أو إدراجه في النص">
+          <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#selection"/></svg><span>تحديد</span>
+        </button>
         <button class="btn ghost small icon-only" id="rotL" type="button" title="تدوير لليسار" aria-label="تدوير لليسار">
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrow-counter-clockwise"/></svg>
         </button>
@@ -209,6 +212,14 @@
         <span class="photo-label muted" id="photoLabel"></span>
       </div>
       <div class="photo-frame" id="photoFrame"><img id="photoImg" alt="" draggable="false">
+        <!-- a part of the photo picked with btnSelect: drag inside it to move it; its bar copies or inserts it -->
+        <div class="sel-box hidden" id="selBox">
+          <div class="sel-bar" id="selBar" role="toolbar" aria-label="الجزء المحدد">
+            <button class="btn small" id="selCopy" type="button"><svg class="i" aria-hidden="true"><use href="vendor/icons.svg#copy"/></svg><span>نسخ</span></button>
+            <button class="btn small" id="selInsert" type="button"><svg class="i" aria-hidden="true"><use href="vendor/icons.svg#images"/></svg><span>إدراج في النص</span></button>
+            <button class="btn ghost small icon-only" id="selCancel" type="button" aria-label="إلغاء التحديد" title="إلغاء التحديد (Esc)"><svg class="i" aria-hidden="true"><use href="vendor/icons.svg#x"/></svg></button>
+          </div>
+        </div>
         <div class="photo-empty hidden" id="photoEmpty">
           <svg class="i big" aria-hidden="true"><use href="vendor/icons.svg#images"/></svg>
           <b>أضف صور صفحات الوثيقة</b>

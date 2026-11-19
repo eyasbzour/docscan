@@ -384,7 +384,7 @@ body.resizing iframe, body.resizing img { pointer-events: none; }
 .zoom input { width: 6.5rem; min-width: 3.5rem; flex: 0 1 6.5rem; }
 .zoom output { min-width: 2.6rem; font-variant-numeric: tabular-nums; }
 .photo-label { flex: 1 1 9rem; text-align: end; font-size: var(--fs-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; min-width: 0; }
-.photo-frame { flex: 1; overflow: auto; padding: 1rem; background: var(--well); }
+.photo-frame { flex: 1; overflow: auto; padding: 1rem; background: var(--well); position: relative; }
 .photo-empty { margin: auto; max-width: 22rem; display: grid; justify-items: center; gap: .75rem; padding: 2rem 1.5rem; text-align: center;
   color: var(--ink); background: var(--surface); border: 1.5px dashed var(--line-strong); border-radius: var(--r-panel); }
 .photo-empty p { margin: 0; color: var(--muted); font-size: var(--fs-sm); line-height: 1.8; }
@@ -394,6 +394,13 @@ body.resizing iframe, body.resizing img { pointer-events: none; }
 .photo-frame.panning { cursor: grabbing; user-select: none; }
 .photo-frame img { display: block; margin: 0 auto; transform-origin: center center; max-width: none; box-shadow: var(--shadow-page); }
 .photo-frame img:not([src]) { display: none; }
+/* picking a part of the photo: touch draws instead of scrolling; outside the part is dimmed like a dialog's backdrop */
+.photo-frame.selecting, .photo-frame.selecting img { cursor: crosshair; touch-action: none; user-select: none; }
+.sel-box { position: absolute; z-index: 2; border: 2px solid var(--accent); box-shadow: 0 0 0 100vmax oklch(18% 0.01 255 / .3); cursor: move; }
+/* above the box, at its right edge (placeSel keeps it inside the visible pane) */
+.sel-bar { position: absolute; display: flex; gap: .25rem; padding: .25rem; white-space: nowrap; cursor: default;
+  background: var(--surface); border: 1px solid var(--line); border-radius: var(--r-panel); box-shadow: var(--shadow-2); }
+.sel-box.moving .sel-bar { display: none; }
 
 /* text pane */
 .read-bar .read-state { font-size: var(--fs-xs); display: inline-flex; align-items: center; gap: .3rem; }
