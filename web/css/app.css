@@ -269,11 +269,12 @@ body.in-draft .topbar { border-bottom-color: transparent; }  /* the title bar an
 .draftbar-start { flex: 1 1 18rem; }
 .draftbar-end { flex-wrap: wrap; }
 .name-input { flex: 1; min-width: 8rem; max-width: 26rem; font-size: var(--fs-md); font-weight: 700; border-color: transparent; background: transparent; }
+/* the box as wide as the name, so the save state reads as the name's own */
+@supports (field-sizing: content) { .name-input { flex: 0 1 auto; field-sizing: content; } }
 .name-input:hover { border-color: var(--line-strong); }
 .save-state { display: inline-flex; align-items: center; gap: .35rem; font-size: var(--fs-xs); color: var(--muted); white-space: nowrap; }
-.save-state::before { content: ""; width: .5rem; height: .5rem; border-radius: 50%; background: var(--ok); }
-.save-state.dirty { color: var(--warn); }
-.save-state.dirty::before { background: var(--warn); }
+/* quiet while autosave keeps up; colour only when a save failed (the reason is its title, Save tries again) */
+.save-state[data-state="failed"] { color: var(--warn); }
 
 .pane-tabs { display: none; }
 
@@ -584,7 +585,7 @@ fieldset > .btn { justify-self: start; }  /* a rare action, not a field: its own
   .draftbar { padding: .45rem .6rem; }
   .draftbar-end { width: 100%; }
   /* icon only: the label is hidden from sight (as .sr-only) but still names the button for screen readers */
-  #btnSettings span, #btnPhone span, .draftbar-end #btnQuick span, .draftbar-end #btnSave span, #outPop summary span {
+  #btnSettings span, #btnPhone span, #saveState span, .draftbar-end #btnQuick span, .draftbar-end #btnSave span, #outPop summary span {
     position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .draftbar-end .inline-field { flex: 1; }
   .draftbar-end .inline-field select { width: 100%; }

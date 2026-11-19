@@ -362,7 +362,7 @@
     $('draftDate').value = draft.date || todayISO();
     if (!draft.template && TEMPLATES[0]) draft.template = TEMPLATES[0].id;
     $('templateSel').value = draft.template || '';
-    setSaveState();
+    saveError = ''; setSaveState();
     renderPages(); showPage(0);
     setPane(draft.pages.length ? 'text' : 'pages');
   }
@@ -379,10 +379,15 @@
     dirty = true; setSaveState();
     clearTimeout(saveTimer); saveTimer = setTimeout(saveDraft, 4000);
   }
-  function setSaveState(text) {
+  let saveError = '';  // why the last save failed; cleared by the next one that works
+  function setSaveState() {
     const s = $('saveState');
-    s.textContent = text || (saving ? 'جارٍ الحفظ…' : dirty ? 'تغييرات غير محفوظة' : 'محفوظ');
-    s.classList.toggle('dirty', dirty);
+    const [state, icon, text] = saving ? ['busy', 'circle-dashed', 'جارٍ الحفظ…'] : saveError ? ['failed', 'warning-circle', 'لم يُحفظ']
+      : dirty ? ['busy', 'circle-dashed', 'لم يُحفظ بعد'] : ['saved', 'check-circle', 'محفوظ'];
+    s.dataset.state = state;
+    s.querySelector('use').setAttribute('href', 'vendor/icons.svg#' + icon);
+    s.querySelector('span').textContent = text;
+    s.title = saveError ? saveError + '. اضغط "حفظ" للمحاولة من جديد.' : '';
   }
 
   async function saveDraft() {
@@ -392,8 +397,9 @@
     saving = true; setSaveState();
     try {
       const r = await api('/api/drafts/' + draft.id, jsonOpts('PUT', draft));
-      draft.version = r.version; draft.updated = r.updated; dirty = false;
+      draft.version = r.version; draft.updated = r.updated; dirty = false; saveError = '';
     } catch (e) {
+      saveError = e.status === 409 ? 'عدّل شخص آخر هذه المسودة في نفس الوقت' : 'تعذر الحفظ: ' + e.message;
       if (e.status === 409) toast('عدّل شخص آخر هذه المسودة في نفس الوقت. انسخ تعديلاتك ثم أعد فتحها.', true);
       else toast('تعذر الحفظ: ' + e.message, true);
     } finally { saving = false; setSaveState(); }
