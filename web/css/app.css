@@ -636,3 +636,18 @@ fieldset > .btn { justify-self: start; }  /* a rare action, not a field: its own
   .page-actions { position: static; opacity: 1; max-width: none; margin-top: .4rem; box-shadow: none; justify-content: center; }
   .page-actions button { width: 44px; height: 44px; }
 }
+
+/* ---------------------------------------------------------------- phones: the app's own popups as bottom sheets
+   (the options, reading options, versions, a column's search, a flagged word, a line) over a dimmed page; a tap on
+   the dim closes the sheet without reaching what is under it. <select> lists already open the phone's own picker.
+   --sheet tells app.js (asSheet) not to place them next to what opened them. */
+@media (max-width: 640px) {
+  :root { --sheet: 1; }
+  .pop, .note-pop { position: fixed; z-index: 50; inset: auto 0 0 0; width: auto; max-width: none; max-height: 85dvh; overflow: auto;
+    padding: 1.1rem 1rem calc(1.1rem + env(safe-area-inset-bottom)); border-width: 1px 0 0; border-radius: var(--r-panel) var(--r-panel) 0 0;
+    animation: sheet-up .26s var(--ease); }
+  body:has(details.pop-wrap[open], #notePop:not(.hidden), #linePop:not(.hidden), #colFilter:not(.hidden))::after {
+    content: ""; position: fixed; inset: 0; z-index: 45; background: oklch(18% 0.01 255 / .3); animation: dim-in .2s var(--ease); }
+}
+@keyframes sheet-up { from { transform: translateY(100%); } }
+@keyframes dim-in { from { opacity: 0; } }

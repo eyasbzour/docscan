@@ -297,6 +297,13 @@
   function setDraftFilter(k, v) { draftFilter[k] = v.trim(); renderDraftList(); }
   function clearDraftFilters() { for (const k in draftFilter) draftFilter[k] = ''; closeColFilter(false); renderDraftList(); }
 
+  // phones show the popups as bottom sheets (app.css, --sheet): then they are not placed beside what opened them
+  const sheets = () => getComputedStyle(document.documentElement).getPropertyValue('--sheet').trim() === '1';
+  function asSheet(pop) {
+    if (!sheets()) return false;
+    pop.style.top = pop.style.left = pop.style.right = '';
+    return true;
+  }
   let colFilterFor = null;  // which column's search panel is open
   function openColFilter(k) {
     closeColFilter(false);
@@ -306,9 +313,11 @@
     for (const inp of pop.querySelectorAll('input')) inp.value = draftFilter[inp.dataset.col];
     pop.classList.remove('hidden');
     // under the header, its right edge on the header's (the page is right to left), kept inside the list
-    const area = pop.offsetParent.getBoundingClientRect(), r = th.getBoundingClientRect();
-    pop.style.top = (r.bottom - area.top + 4) + 'px';
-    pop.style.right = Math.max(0, Math.min(area.right - r.right, area.width - pop.offsetWidth)) + 'px';
+    if (!asSheet(pop)) {
+      const area = pop.offsetParent.getBoundingClientRect(), r = th.getBoundingClientRect();
+      pop.style.top = (r.bottom - area.top + 4) + 'px';
+      pop.style.right = Math.max(0, Math.min(area.right - r.right, area.width - pop.offsetWidth)) + 'px';
+    }
     th.querySelector('.filt').setAttribute('aria-expanded', 'true');
     pop.querySelector(`input[data-col="${k}"]`).focus();
   }
@@ -942,6 +951,7 @@
   function placeNote() {
     if (!noteMark) return;
     const pop = $('notePop'), r = noteMark.getBoundingClientRect();
+    if (asSheet(pop)) return;
     const below = r.bottom + 8, fits = below + pop.offsetHeight < window.innerHeight - 10;
     pop.style.top = Math.max(10, fits ? below : r.top - pop.offsetHeight - 8) + 'px';
     pop.style.left = Math.max(10, Math.min(window.innerWidth - pop.offsetWidth - 10, r.left)) + 'px';
@@ -1082,6 +1092,7 @@
     const t = lineAt.t, near = t.line || t.para;  // next to the line that was clicked, also for its paragraph
     const r = near ? pe.rectOf(near.from, near.to) : pe.rectOf(t.at, t.at);
     const pop = $('linePop'), w = pop.offsetWidth, h = pop.offsetHeight;
+    if (asSheet(pop)) return;
     const below = r.bottom + 8, fits = below + h < window.innerHeight - 10;
     pop.style.top = Math.max(10, fits ? below : r.top - h - 8) + 'px';
     pop.style.left = Math.max(10, Math.min(window.innerWidth - w - 10, r.right - w)) + 'px';
@@ -1514,12 +1525,17 @@
     // popovers: one open at a time, closed by a click anywhere outside them
     const pops = [...document.querySelectorAll('details.pop-wrap')];
     pops.forEach((d) => d.addEventListener('toggle', () => { if (d.open) pops.forEach((o) => { if (o !== d) o.open = false; }); }));
-    document.addEventListener('pointerdown', (e) => {
+    const closePops = (e) => {
       pops.forEach((d) => { if (d.open && !d.contains(e.target)) d.open = false; });
       if (colFilterFor && !e.target.closest('#colFilter, .filt')) closeColFilter(false);
       if (noteMark && !e.target.closest('#notePop, mark.flag, .flag-item')) closeNote();
       if (lineAt && !e.target.closest('#linePop')) closeLine();
-    });
+    };
+    // a sheet's dim (the body's ::after, app.css) closes on the click, so the dim is still there to take it and
+    // nothing under it is pressed; closing on the press would let the click through to the button underneath
+    const onDim = (e) => e.target === document.body && sheets();
+    document.addEventListener('pointerdown', (e) => { if (!onDim(e)) closePops(e); });
+    document.addEventListener('click', (e) => { if (onDim(e)) closePops(e); });
 
     $('btnPick').onclick = () => $('fileAdd').click();
     $('btnPickBig').onclick = () => $('fileAdd').click();
