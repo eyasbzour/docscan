@@ -99,12 +99,25 @@ if ($Parts) {
     # the folder goes in as an argument: the embedded Python ignores PYTHONPATH (its ._pth file decides the path).
     # After the base packages, as desktop\app.py adds it, so this also proves the readers load as installed.
     $boot = "import sys; sys.path.append(sys.argv[1]); sys.path.insert(0, '.'); "
+    # -X utf8: EasyOCR's download bar prints block characters, which the runner's console codepage (cp1252) cannot
+    # encode; PYTHONIOENCODING would be ignored like PYTHONPATH
     Push-Location (Join-Path $App "server")
-    & $Py -c ($boot + "from engines import easyocr_engine as e; e._get_reader(); print('easyocr models ready')") $site
+    & $Py -X utf8 -c ($boot + "from engines import easyocr_engine as e; e._get_reader(); print('easyocr models ready')") $site
     if ($LASTEXITCODE) { throw "easyocr models" }
-    & $Py -c ($boot + "from engines import nuqta_engine as e; e._get(); print('nuqta model ready')") $site
+    & $Py -X utf8 -c ($boot + "from engines import nuqta_engine as e; e._get(); print('nuqta model ready')") $site
     if ($LASTEXITCODE) { throw "nuqta model" }
     Pop-Location
+    # where links are allowed (the runner), the Hugging Face cache links each snapshot file to a blob; a zip keeps the
+    # links and a per-user install cannot make them, so the snapshots get the files themselves and the blobs go
+    $hf = Join-Path $models "hf"
+    Get-ChildItem $hf -Recurse -File -Attributes ReparsePoint | ForEach-Object {
+        $blob = $_.ResolveLinkTarget($true).FullName
+        Remove-Item $_.FullName
+        Copy-Item $blob $_.FullName
+    }
+    Get-ChildItem $hf -Recurse -Directory -Filter blobs | Remove-Item -Recurse -Force
+    $links = @(Get-ChildItem $models -Recurse -Attributes ReparsePoint)
+    if ($links.Count) { throw "links left in the models: $($links[0].FullName)" }
     # the installer downloads this part only when the installed one is older (desktop\HEAVY_VERSION: bump it when
     # requirements-heavy.txt or the models change)
     Copy-Item (Join-Path $PSScriptRoot "HEAVY_VERSION") (Join-Path $heavy "VERSION")

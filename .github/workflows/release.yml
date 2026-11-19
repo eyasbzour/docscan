@@ -44,8 +44,8 @@ jobs:
         run: |
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
           if (-not (Test-Path $iscc)) { choco install innosetup -y --no-progress }
-          # Inno Setup ships Arabic only among its unofficial translations
-          Invoke-WebRequest "https://raw.githubusercontent.com/jrsoftware/issrc/main/Files/Languages/Unofficial/Arabic.isl" -OutFile desktop/Arabic.isl
+          # Arabic is one of Inno Setup's official translations now, but older installs lack it; pinned to a commit
+          Invoke-WebRequest "https://raw.githubusercontent.com/jrsoftware/issrc/625730370968d1b82a6925f3ac3d671b5aeafb57/Files/Languages/Arabic.isl" -OutFile desktop/Arabic.isl
           & $iscc "/DAppVersion=${{ steps.v.outputs.version }}" "/DHeavyVersion=${{ steps.v.outputs.heavy }}" desktop/installer.iss
           if ($LASTEXITCODE) { throw "installer" }
           Get-ChildItem build/out | Format-Table Name, Length

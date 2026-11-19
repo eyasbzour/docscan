@@ -42,7 +42,7 @@ RestartApplications=no
 ShowLanguageDialog=auto
 
 [Languages]
-; Arabic.isl comes from Inno Setup's unofficial translations (the workflow downloads it next to this file)
+; Arabic.isl is Inno Setup's Arabic translation (the workflow downloads it next to this file)
 Name: "ar"; MessagesFile: "Arabic.isl"
 Name: "en"; MessagesFile: "compiler:Default.isl"
 
