@@ -159,3 +159,28 @@ so the app itself needs no build step.
 The free readers run on your computer or server, so photos never leave it. Choosing Claude or Google Vision sends that
 page's photo to that company with the user's key. On a server, drafts and photos are visible to everyone who can open the
 app, so keep it on the internal network and set `APP_PASSWORD`.
+
+The Windows program also connects to GitHub. At start it asks this repository for its latest release, to offer updates,
+and it downloads the installer or the optional readers from those releases only when the user chooses to. Apart from the
+address that any web request carries, these requests include nothing about the user or their documents.
+
+## Code signing policy
+
+The Windows installer will be signed for free through SignPath once the project's application is approved; releases up to
+1.0.1 are unsigned. Signed releases carry this attribution: Free code signing provided by [SignPath.io](https://about.signpath.io),
+certificate by [SignPath Foundation](https://signpath.org).
+
+- Committers and reviewers: [eyasbzour](https://github.com/eyasbzour)
+- Approvers: [eyasbzour](https://github.com/eyasbzour)
+
+The signed file is the installer that this repository's GitHub workflow builds from the source code here, and each signed
+release is approved by hand. The open-source components it bundles (Python, Tesseract, PaddleOCR and the libraries they
+use) are included as their own projects publish them.
+
+The program sends nothing to other computers unless the user asks it to, apart from the update check described under
+[Privacy](#privacy).
+
+## License
+
+MIT, see [LICENSE](LICENSE). The bundled readers and libraries keep their own licenses (Tesseract, PaddleOCR and the Nuqta
+model are Apache-2.0).

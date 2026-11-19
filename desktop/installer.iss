@@ -18,6 +18,12 @@ AppName=DocScan
 AppVerName=DocScan {#AppVersion}
 AppVersion={#AppVersion}
 AppPublisher=DocScan
+; the setup file's own details (Properties > Details); code signing (SignPath) checks the name and version
+VersionInfoVersion={#AppVersion}
+VersionInfoProductName=DocScan
+VersionInfoDescription=DocScan Setup
+VersionInfoCompany=DocScan
+VersionInfoCopyright=MIT License
 AppPublisherURL=https://github.com/{#Repo}
 AppSupportURL=https://github.com/{#Repo}/issues
 AppUpdatesURL=https://github.com/{#Repo}/releases
