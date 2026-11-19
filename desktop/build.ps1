@@ -53,6 +53,9 @@ robocopy (Join-Path $Repo "web") (Join-Path $App "web") /E /NFL /NDL /NJH /NJS |
 Copy-Item (Join-Path $Repo "templates\plain.*") (Join-Path $App "templates")  # only the plain template, never the letterhead
 Copy-Item (Join-Path $PSScriptRoot "app.py") (Join-Path $App "desktop")
 Set-Content (Join-Path $App "desktop\VERSION") $Version -Encoding ascii
+# compiled now, not on the first start after each install or update (pip already did the packages)
+& $Py -m compileall -q -j 0 $App | Out-Null
+if ($LASTEXITCODE) { throw "compileall" }
 & $Py (Join-Path $PSScriptRoot "make_icon.py") (Join-Path $Dist "docscan.ico")
 
 if (-not $SkipTesseract) {
