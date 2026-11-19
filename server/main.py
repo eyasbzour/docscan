@@ -24,6 +24,7 @@ from starlette.concurrency import run_in_threadpool
 
 import convert
 import engines
+import parts
 
 ROOT = Path(__file__).resolve().parent.parent
 DATA = Path(os.environ.get("DOCSCAN_DATA", ROOT / "data"))
@@ -116,6 +117,37 @@ async def update_install():
 
 
 QUIT_APP = [lambda: os._exit(0)]  # desktop/app.py replaces it with closing its window
+RESTART_APP = [None]  # desktop/app.py sets it: close, and open again
+
+
+@app.post("/api/restart")
+def restart():
+    if not RESTART_APP[0]:
+        return JSONResponse({"error": "إعادة التشغيل متاحة في برنامج ويندوز فقط"}, status_code=404)
+    RESTART_APP[0]()
+    return {"ok": True}
+
+
+@app.get("/api/parts")
+def parts_status():
+    return parts.status()
+
+
+@app.post("/api/parts/stop")
+def parts_stop():
+    parts.stop()
+    return parts.status()
+
+
+@app.post("/api/parts/install")
+def parts_install():
+    if not parts.offered():
+        return JSONResponse({"error": "تنزيل القرّاء متاح في برنامج ويندوز فقط"}, status_code=404)
+    try:
+        parts.start()
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=507)
+    return parts.status()
 
 
 # ------------------------------------------------------------------ engines + OCR
@@ -126,7 +158,11 @@ def list_engines():
         ok, why = engines.availability(e["id"])
         server_key = bool((e["key"] == "claude" and os.environ.get("ANTHROPIC_API_KEY")) or
                           (e["key"] == "google" and os.environ.get("GOOGLE_VISION_API_KEY")))
-        out.append({**e, "available": ok, "reason": why, "serverKey": server_key})
+        # Nuqta and EasyOCR come as one download in the Windows program (parts.py)
+        installable = not ok and e["id"] in ("nuqta", "easyocr") and parts.offered()
+        if installable and parts.status()["state"] == "restart":
+            installable, why = False, "اكتمل التنزيل. أعد تشغيل البرنامج ليعمل هذا القارئ."
+        out.append({**e, "available": ok, "reason": why, "serverKey": server_key, "installable": installable})
     return {"engines": out, "claudeModels": CLAUDE_MODELS, "lowConfidence": LOW_CONF}
 
 

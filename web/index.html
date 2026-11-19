@@ -30,6 +30,19 @@
   <button class="btn ghost small" id="updateLater" type="button">لاحقاً</button>
 </div>
 
+<!-- the Windows program: the optional readers downloading (server/parts.py) -->
+<div id="partsBar" class="update-bar hidden" role="status">
+  <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#file-arrow-down"/></svg>
+  <span id="partsText"></span>
+  <progress id="partsProg" max="1"></progress>
+  <button class="btn ghost small" id="partsStop" type="button">إيقاف</button>
+  <button class="btn small hidden" id="partsRetry" type="button">إعادة المحاولة</button>
+  <button class="btn small primary hidden" id="partsRestart" type="button">إعادة التشغيل</button>
+  <button class="btn ghost small icon-only hidden" id="partsClose" type="button" aria-label="إغلاق">
+    <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#x"/></svg>
+  </button>
+</div>
+
 <!-- ============================ HOME ============================ -->
 <main id="viewHome" class="view home">
   <header class="home-head">
@@ -305,13 +318,15 @@
       <label class="field">مفتاح Google Vision<input id="setGoogle" type="password" autocomplete="off" dir="ltr"></label>
       <label class="check"><input type="checkbox" id="setRemember"> تذكر المفاتيح على هذا الجهاز</label>
     </fieldset>
-    <!-- the Windows program only: it also checks by itself at start -->
-    <fieldset id="updateBox" class="hidden">
-      <legend>التحديثات</legend>
-      <p class="muted small-print" id="updateInfo" role="status"></p>
-      <button class="btn small" id="btnCheckUpdate" type="button">
-        <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-clockwise"/></svg><span>التحقق من التحديثات</span>
-      </button>
+    <!-- the Windows program only, while Nuqta and EasyOCR are not installed -->
+    <fieldset id="partsBox" class="hidden">
+      <legend>القرّاء الإضافية</legend>
+      <div class="set-row">
+        <p class="muted small-print" id="partsInfo" role="status"></p>
+        <button class="btn small" id="btnParts" type="button">
+          <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#file-arrow-down"/></svg><span>تنزيل</span>
+        </button>
+      </div>
     </fieldset>
     <fieldset id="adminBox">
       <legend>قوالب الترويسة</legend>
@@ -320,9 +335,21 @@
         <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#plus"/></svg><span>إضافة قالب جديد</span>
       </button>
     </fieldset>
+    <fieldset>
+      <legend>عن البرنامج</legend>
+      <!-- the Windows program only: it also checks by itself at start -->
+      <div class="set-row hidden" id="updateBox">
+        <p class="small-print" id="updateInfo" role="status"></p>
+        <button class="btn small" id="btnCheckUpdate" type="button">
+          <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-clockwise"/></svg><span id="checkUpdateLabel"></span>
+        </button>
+      </div>
+      <!-- a new window: the Windows program opens it in the browser (pywebview) -->
+      <p class="muted small-print credit">تطوير: <a href="https://github.com/eyasbzour?tab=repositories" target="_blank" rel="noopener" dir="ltr">eyasbzour</a></p>
+    </fieldset>
+    <!-- every field saves as it changes, like the theme -->
     <div class="dlg-actions">
-      <button class="btn primary" value="save" id="btnSettingsSave">حفظ</button>
-      <button class="btn ghost" value="cancel" formnovalidate>إغلاق</button>
+      <button class="btn primary" value="done" formnovalidate>تم</button>
     </div>
   </form>
 </dialog>

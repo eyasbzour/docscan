@@ -127,10 +127,12 @@
     try {
       const st = await api('/api/update/check', { method: 'POST' });
       if (st.update) {
-        $('updateInfo').textContent = `يتوفر الإصدار ${st.update.version}. اضغط «تحديث الآن» في الشريط أعلى الصفحة.`;
+        $('updateInfo').textContent = `يتوفر الإصدار ${st.update.version}.`;
         showUpdate(st.update);
+        $('checkUpdateLabel').textContent = 'تحديث الآن';
+        btn.onclick = () => { $('dlgSettings').close(); $('btnUpdate').click(); };
       } else {
-        $('updateInfo').textContent = `لديك أحدث إصدار (${st.current}).`;
+        $('updateInfo').textContent = `الإصدار ${st.current}، وهو أحدث إصدار.`;
       }
     } catch (e) { $('updateInfo').textContent = e.message; }
     btn.disabled = false;
@@ -149,6 +151,7 @@
     $('newOwner').value = settings.author;
     route();
     setTimeout(() => checkUpdate(), 2500);
+    watchParts(true);  // a download still running after a reload, or a restart it is waiting for
     window.addEventListener('hashchange', route);
   }
 
@@ -549,8 +552,8 @@
     const sel = $('engineSel');
     const groups = { free: el('optgroup', { label: 'مجاني (على الخادم)' }), ai: el('optgroup', { label: 'ذكاء اصطناعي (يحتاج مفتاحاً)' }) };
     for (const e of ENGINES) {
-      groups[e.group].append(el('option', { value: e.id, disabled: !e.available, title: e.reason || '' },
-        e.label + (e.available ? '' : ' (غير متاح)')));
+      groups[e.group].append(el('option', { value: e.id, disabled: !e.available && !e.installable, title: e.reason || '' },
+        e.label + (e.available ? '' : e.installable ? ' (يحتاج تنزيلاً)' : ' (غير متاح)')));
     }
     sel.replaceChildren(groups.free, groups.ai);
     const saved = store.get('engine');
@@ -570,6 +573,62 @@
     // every reader has the page direction now; Tesseract also its clean-up and language
   }
   const engineLabel = (id) => (ENGINES.find((e) => e.id === id) || {}).label || id;
+
+  // the Windows program: Nuqta and EasyOCR come as one download (server/parts.py); picking either offers it
+  let partsWanted = null;  // the reader to switch to once they are in
+  async function offerParts(engineId) {
+    if (!(await ask('يُنزَّل قارئا Nuqta و EasyOCR معاً، نحو 2 جيجابايت، ويعملان فور انتهاء التنزيل. يمكنك متابعة العمل في أثناء ذلك.', { ok: 'تنزيل' }))) return;
+    partsWanted = engineId;
+    startParts();
+  }
+  async function startParts() {
+    try { await api('/api/parts/install', { method: 'POST' }); } catch (e) { toast(e.message, true); return; }
+    watchParts();
+  }
+  // every second while it runs; atStart: a download begun before the page was reloaded, nothing to announce otherwise
+  let partsBusy = false;  // downloading or unpacking: Settings says so instead of offering it again
+  async function watchParts(atStart = false) {
+    let st;
+    try { st = await api('/api/parts'); } catch (e) { return; }
+    const bar = $('partsBar'), prog = $('partsProg');
+    const show = (id, on) => $(id).classList.toggle('hidden', !on);
+    partsBusy = st.state === 'downloading' || st.state === 'unpacking';
+    if (st.state === 'idle' || (atStart && st.state === 'done')) { bar.classList.add('hidden'); showPartsBox(); return; }
+    bar.classList.remove('hidden');
+    show('partsProg', partsBusy); show('partsStop', st.state === 'downloading');
+    show('partsRetry', st.state === 'error'); show('partsClose', st.state === 'error');
+    show('partsRestart', st.state === 'restart');
+    if (st.state === 'error') { $('partsText').textContent = st.error; showPartsBox(); return; }
+    if (st.state === 'restart') {
+      $('partsText').textContent = 'اكتمل التنزيل. أعد تشغيل البرنامج ليعمل Nuqta و EasyOCR.';
+      try { ENGINES = (await api('/api/engines')).engines; fillEngineSelect(); } catch (e) { /* the list stays */ }
+      showPartsBox();
+      return;
+    }
+    if (st.state === 'done') {
+      bar.classList.add('hidden');
+      try { ENGINES = (await api('/api/engines')).engines; } catch (e) { return; }
+      fillEngineSelect();
+      if (partsWanted && ENGINES.some((e) => e.id === partsWanted && e.available)) {
+        $('engineSel').value = partsWanted; store.set('engine', partsWanted, true); engineChanged();
+      }
+      toast('أصبح قارئا Nuqta و EasyOCR جاهزين.');
+      showPartsBox();
+      return;
+    }
+    const mb = (n) => Math.round(n / 1048576).toLocaleString('en');
+    if (st.state === 'unpacking') { $('partsText').textContent = 'فك ضغط القرّاء الإضافية…'; prog.removeAttribute('value'); }
+    else if (st.total) { $('partsText').textContent = `تنزيل القرّاء الإضافية… ${mb(st.done)} من ${mb(st.total)} ميجابايت`; prog.value = st.done / st.total; }
+    else { $('partsText').textContent = 'تنزيل القرّاء الإضافية…'; prog.removeAttribute('value'); }
+    showPartsBox();
+    setTimeout(watchParts, 1000);
+  }
+  function showPartsBox() {
+    $('partsBox').classList.toggle('hidden', !ENGINES.some((e) => e.installable));
+    $('partsInfo').textContent = partsBusy ? $('partsText').textContent
+      : 'Nuqta (الأدق للعربية، وأبطأ) و EasyOCR غير مثبتين. يُنزَّلان معاً، نحو 2 جيجابايت.';
+    $('btnParts').disabled = partsBusy;
+  }
 
   function keyFor(engineId) {
     const e = ENGINES.find((x) => x.id === engineId);
@@ -1171,6 +1230,7 @@
     showTheme();
     $('setAuthor').value = settings.author; $('setClaude').value = settings.claudeKey;
     $('setGoogle').value = settings.googleKey; $('setRemember').checked = settings.remember;
+    showPartsBox();
     showUpdateBox();
     // opened before the start-up check asked (it waits a moment): ask now
     if (appVersion === undefined) api('/api/update').then((st) => { appVersion = st.current; showUpdateBox(); }).catch(() => {});
@@ -1178,7 +1238,10 @@
   }
   function showUpdateBox() {
     $('updateBox').classList.toggle('hidden', !appVersion);
-    if (appVersion) $('updateInfo').textContent = `الإصدار الحالي: ${appVersion}`;
+    if (!appVersion) return;
+    $('updateInfo').textContent = `الإصدار ${appVersion}`;
+    $('checkUpdateLabel').textContent = 'التحقق من التحديثات';
+    $('btnCheckUpdate').onclick = checkUpdateNow;
   }
   function saveSettings() {
     const keep = $('setRemember').checked;
@@ -1186,7 +1249,6 @@
     store.set('author', $('setAuthor').value.trim(), true);
     store.set('claudeKey', $('setClaude').value.trim(), keep);
     store.set('googleKey', $('setGoogle').value.trim(), keep);
-    toast('حُفظت الإعدادات.');
   }
 
   // ------------------------------------------------------------------ wiring
@@ -1198,8 +1260,21 @@
     $('colFilter').addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === 'Escape') { e.preventDefault(); closeColFilter(true); } });
     $('btnBack').onclick = () => { location.hash = ''; };
     $('btnSettings').onclick = openSettings;
-    $('btnSettingsSave').onclick = saveSettings;
-    $('btnCheckUpdate').onclick = checkUpdateNow;
+    // Settings save as they change, like the theme: closing never drops a typed name or key
+    for (const id of ['setAuthor', 'setClaude', 'setGoogle']) $(id).addEventListener('input', saveSettings);
+    $('setRemember').addEventListener('change', saveSettings);
+    $('btnParts').onclick = () => { $('dlgSettings').close(); offerParts('nuqta'); };
+    $('partsRetry').onclick = startParts;
+    $('partsStop').onclick = () => api('/api/parts/stop', { method: 'POST' }).then(() => toast('أُوقف التنزيل.')).catch((e) => toast(e.message, true));
+    $('partsClose').onclick = () => $('partsBar').classList.add('hidden');
+    $('partsRestart').onclick = async () => {
+      if (draft && dirty) await saveDraft();
+      $('partsRestart').disabled = true;
+      api('/api/restart', { method: 'POST' }).catch((e) => { toast(e.message, true); $('partsRestart').disabled = false; });
+    };
+    // the browser's own "please fill out this field" speaks the browser's language, not the page's
+    $('newName').addEventListener('invalid', (e) => e.target.setCustomValidity(e.target.validity.valueMissing ? 'اكتب اسم الوثيقة أولاً.' : ''));
+    $('newName').addEventListener('input', (e) => e.target.setCustomValidity(''));
     document.querySelectorAll('#setTheme button').forEach((b) => { b.onclick = () => { DocTheme.set(b.dataset.pick); showTheme(); }; });
     $('btnTplAdd').onclick = addTemplate;
     $('btnTplNew').onclick = () => openTemplateAdd(false);
@@ -1242,6 +1317,8 @@
     window.addEventListener('resize', applyPhotoTransform);
 
     $('engineSel').onchange = () => {  // remember only a real pick, so a later change of default still reaches the user
+      const picked = ENGINES.find((e) => e.id === $('engineSel').value);
+      if (picked && !picked.available && picked.installable) { fillEngineSelect(); offerParts(picked.id); return; }
       store.set('engine', $('engineSel').value, true);
       engineChanged();
     };
