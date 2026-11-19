@@ -34,6 +34,9 @@ UninstallDisplayName=DocScan
 Compression=lzma2/ultra64
 SolidCompression=yes
 LZMANumBlockThreads=4
+; four ultra64 threads need about 3 GB, more than the 32-bit compiler can hold ("Out of memory" on PaddleOCR's
+; libpaddle.pyd): the compressor runs in its own 64-bit process instead
+LZMAUseSeparateProcess=yes
 WizardStyle=modern
 ; the program's own single-instance mutex: setup asks to close a running copy
 AppMutex=Local\DocScan.single
