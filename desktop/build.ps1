@@ -2,7 +2,7 @@
 #   .\desktop\build.ps1 -Version 1.0.0            base program: Tesseract + PaddleOCR (Tesseract from $env:TESSERACT_DIR
 #                                                 or C:\Program Files\Tesseract-OCR; the GitHub workflow installs it)
 #   .\desktop\build.ps1 -Version 1.0.0 -Parts     also the optional readers, as zips the installer downloads:
-#                                                 build\out\DocScan-part-heavy.zip and DocScan-part-nuqta-model.zip
+#                                                 build\out\DocScan-part-heavy.zip and DocScan-part-models.zip
 # Needs internet (Python, packages, models). The ministry letterhead template is never included.
 param(
     [string]$Version = "0.0.0",
@@ -83,23 +83,28 @@ if ($Parts) {
     $heavy = Join-Path $Build "parts\heavy"
     $site = Join-Path $heavy "site-packages"
     Remove-Item -Recurse -Force $heavy -ErrorAction SilentlyContinue
+    # pinned to the base program's versions: desktop\app.py puts this folder after the base packages, so a newer copy
+    # of a shared one here (numpy, PyYAML) would never load, and the readers have to work with the base ones
+    $pins = Join-Path $Build "base-pins.txt"
+    & $Py -m pip freeze --exclude-editable | Set-Content $pins -Encoding ascii
     # one install, so torch is resolved once (a second --target install would fetch it again); CPU wheels
     & $Py -m pip install --no-warn-script-location -q --target $site torch torchvision -r (Join-Path $PSScriptRoot "requirements-heavy.txt") `
-        --extra-index-url https://download.pytorch.org/whl/cpu
+        -c $pins --extra-index-url https://download.pytorch.org/whl/cpu
     if ($LASTEXITCODE) { throw "heavy readers" }
     # their models, through the engine code itself (same models and settings as when reading)
     $models = Join-Path $Build "parts\models"
     Remove-Item -Recurse -Force $models -ErrorAction SilentlyContinue
     $env:EASYOCR_MODELS = Join-Path $models "easyocr"
     $env:HF_HOME = Join-Path $models "hf"
-    $env:PYTHONPATH = $site
+    # the folder goes in as an argument: the embedded Python ignores PYTHONPATH (its ._pth file decides the path).
+    # After the base packages, as desktop\app.py adds it, so this also proves the readers load as installed.
+    $boot = "import sys; sys.path.append(sys.argv[1]); sys.path.insert(0, '.'); "
     Push-Location (Join-Path $App "server")
-    & $Py -c "import sys; sys.path.insert(0, '.'); from engines import easyocr_engine as e; e._get_reader(); print('easyocr models ready')"
+    & $Py -c ($boot + "from engines import easyocr_engine as e; e._get_reader(); print('easyocr models ready')") $site
     if ($LASTEXITCODE) { throw "easyocr models" }
-    & $Py -c "import sys; sys.path.insert(0, '.'); from engines import nuqta_engine as e; e._get(); print('nuqta model ready')"
+    & $Py -c ($boot + "from engines import nuqta_engine as e; e._get(); print('nuqta model ready')") $site
     if ($LASTEXITCODE) { throw "nuqta model" }
     Pop-Location
-    Remove-Item Env:PYTHONPATH
     # the installer downloads this part only when the installed one is older (desktop\HEAVY_VERSION: bump it when
     # requirements-heavy.txt or the models change)
     Copy-Item (Join-Path $PSScriptRoot "HEAVY_VERSION") (Join-Path $heavy "VERSION")
