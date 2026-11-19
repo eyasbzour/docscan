@@ -30,9 +30,11 @@
 <div id="updateBar" class="update-bar hidden" role="status">
   <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-clockwise"/></svg>
   <span id="updateText"></span>
+  <button class="btn ghost small hidden" id="updateNotesBtn" type="button" aria-expanded="false" aria-controls="updateNotes">ما الجديد؟</button>
   <button class="btn small primary" id="btnUpdate" type="button">تحديث الآن</button>
   <button class="btn ghost small" id="updateLater" type="button">لاحقاً</button>
 </div>
+<ul id="updateNotes" class="update-notes hidden"></ul>
 
 <!-- the Windows program: the optional readers downloading (server/parts.py) -->
 <div id="partsBar" class="update-bar hidden" role="status">

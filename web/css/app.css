@@ -182,10 +182,14 @@ input[type=file] { min-height: 0; padding: .3rem; }
 .count { color: var(--muted); font-weight: 600; font-size: var(--fs-sm); }
 
 /* ---------------------------------------------------------------- top bar */
-.update-bar { display: flex; align-items: center; gap: .6rem; padding: .45rem 1rem; font-size: var(--fs-sm);
+.update-bar { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; padding: .45rem 1rem; font-size: var(--fs-sm);
   background: var(--accent-soft); color: var(--ink); border-bottom: 1px solid var(--accent-line); }
 .update-bar .i { color: var(--accent); }
-.update-bar span { flex: 1; }
+/* what's new opens under the bar, in the same band, so it reads as part of the offer */
+.update-notes { margin: 0; padding: .1rem 1rem .75rem; padding-inline-start: 2.75rem; display: grid; gap: .3rem;
+  max-height: 40dvh; overflow: auto; font-size: var(--fs-sm); background: var(--accent-soft); border-bottom: 1px solid var(--accent-line); }
+.update-notes li { max-width: 70ch; }
+.update-bar span { flex: 1 1 14rem; }  /* narrow: the buttons go under the text */
 .update-bar progress { width: 10rem; accent-color: var(--accent); }
 .topbar { height: var(--topbar-h); display: flex; align-items: center; gap: .75rem; padding: 0 1rem; background: var(--chrome); border-bottom: 1px solid var(--line); }
 body.in-draft .topbar { border-bottom-color: transparent; }  /* the title bar and the draft bar read as one toolbar */
@@ -577,10 +581,11 @@ fieldset > .btn { justify-self: start; }  /* a rare action, not a field: its own
 @media (max-width: 899px) {
   .topbar { padding: 0 .6rem; }
   .brand-name { font-size: var(--fs-sm); }
-  #btnSettings span { display: none; }
   .draftbar { padding: .45rem .6rem; }
   .draftbar-end { width: 100%; }
-  .draftbar-end #btnQuick span, .draftbar-end #btnSave span, #outPop summary span { display: none; }
+  /* icon only: the label is hidden from sight (as .sr-only) but still names the button for screen readers */
+  #btnSettings span, #btnPhone span, .draftbar-end #btnQuick span, .draftbar-end #btnSave span, #outPop summary span {
+    position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .draftbar-end .inline-field { flex: 1; }
   .draftbar-end .inline-field select { width: 100%; }
   .draftbar-end #btnExport { flex: 1 1 100%; }

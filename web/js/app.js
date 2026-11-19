@@ -112,7 +112,16 @@
   function showUpdate(u) {
     $('updateText').textContent = `يتوفر إصدار جديد من البرنامج (${u.version}).`;
     $('updateBar').classList.remove('hidden');
-    $('updateLater').onclick = () => { $('updateBar').classList.add('hidden'); store.set('skipUpdate', u.version); };
+    // the tag's message, one change per line ("- " or "* " in front is dropped); shown as text, never as HTML
+    const lines = (u.notes || '').split('\n').map((l) => l.replace(/^\s*[-*•]\s*/, '').trim()).filter(Boolean);
+    $('updateNotes').replaceChildren(...lines.map((l) => el('li', null, l)));
+    const notesBtn = $('updateNotesBtn'), openNotes = (open) => {
+      $('updateNotes').classList.toggle('hidden', !open); notesBtn.setAttribute('aria-expanded', open);
+      notesBtn.textContent = open ? 'إخفاء التفاصيل' : 'ما الجديد؟';
+    };
+    notesBtn.classList.toggle('hidden', !lines.length); openNotes(false);
+    notesBtn.onclick = () => openNotes(notesBtn.getAttribute('aria-expanded') !== 'true');
+    $('updateLater').onclick = () => { $('updateBar').classList.add('hidden'); openNotes(false); store.set('skipUpdate', u.version); };
     $('btnUpdate').onclick = async () => {
       if (!(await ask(`سيُنزَّل الإصدار ${u.version} ويُثبَّت، ثم يُفتح البرنامج من جديد. يُحفظ عملك أولاً.`, { ok: 'تحديث' }))) return;
       if (draft && dirty) await saveDraft();
