@@ -8,7 +8,8 @@ the program, readers and all, so nothing is left in memory. Drafts and templates
 Folder layout (desktop/build.ps1 makes it; the installer copies it):
     python\\            embedded Python and the base packages     app\\server, app\\web, app\\templates, app\\desktop
     tesseract\\         tesseract.exe and its tessdata folders    models\\            PaddleOCR (and optional) models
-    parts\\<name>\\site-packages   optional readers (EasyOCR, Nuqta), downloaded by the installer when chosen
+    parts\\<name>\\site-packages   optional readers (EasyOCR, Nuqta), downloaded by the installer
+                                  when chosen, or later from inside the program (server/parts.py)
 """
 from __future__ import annotations
 
@@ -109,7 +110,7 @@ def setup() -> None:
     tess = ROOT / "tesseract"
     os.environ.update({
         "DOCSCAN_DATA": str(data), "DOCSCAN_TEMPLATES": str(templates),
-        "DOCSCAN_DESKTOP": "1", "DOCSCAN_VERSION": VERSION,
+        "DOCSCAN_DESKTOP": "1", "DOCSCAN_VERSION": VERSION, "DOCSCAN_ROOT": str(ROOT),
         "TESSDATA_FAST": str(tess / "tessdata" / "fast"), "TESSDATA_STANDARD": str(tess / "tessdata" / "standard"),
         "TESSDATA_BEST": str(tess / "tessdata" / "best"),
         # every model ships with the program: no downloads, no "checking connectivity" at start
@@ -120,8 +121,27 @@ def setup() -> None:
     os.environ["PATH"] = str(tess) + os.pathsep + os.environ.get("PATH", "")
     for part in sorted((ROOT / "parts").glob("*/site-packages")):
         sys.path.append(str(part))
+    # PaddleOCR and torch each bring libiomp5md.dll (Intel OpenMP), in different versions, and Windows keeps the
+    # first one loaded: with PaddleOCR's, torch fails ("WinError 127 ... shm.dll"). Torch's first, both work.
+    # (paddleocr imports torch itself when it can, so this only makes that order certain.)
+    omp = ROOT / "parts" / "heavy" / "site-packages" / "torch" / "lib" / "libiomp5md.dll"
+    if omp.exists():
+        ctypes.WinDLL(str(omp))
     sys.path.insert(0, str(APP / "server"))
     os.chdir(APP / "server")
+
+
+def restart(window) -> None:
+    """Close, and open again: a detached copy waits for this process to end (its single-instance lock goes
+    with it), then starts the program."""
+    import subprocess
+
+    wait = ("import ctypes, subprocess, sys; k = ctypes.windll.kernel32; "
+            "h = k.OpenProcess(0x00100000, False, int(sys.argv[1])); h and k.WaitForSingleObject(h, 30000); "
+            "subprocess.Popen(sys.argv[2:])")
+    subprocess.Popen([sys.executable, "-c", wait, str(os.getpid()), sys.executable, str(HERE / "app.py")],
+                     close_fds=True, creationflags=subprocess.DETACHED_PROCESS)
+    window.destroy()
 
 
 def pick_port() -> int:
@@ -157,6 +177,8 @@ def main() -> None:
     hide_child_consoles()
     setup()
 
+    # the web engine's own words ("please fill out this field", the right-click menu) in Arabic, like the app
+    os.environ.setdefault("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS", "--lang=ar")
     import webview
 
     webview.settings["ALLOW_DOWNLOADS"] = True  # produced files go to the Downloads folder
@@ -172,6 +194,7 @@ def main() -> None:
             import main as server
 
             server.QUIT_APP[0] = window.destroy  # the updater closes the program this way
+            server.RESTART_APP[0] = lambda: restart(window)
             srv = state["server"] = uvicorn.Server(uvicorn.Config(server.app, host="127.0.0.1", port=port, log_level="warning"))
             thread = threading.Thread(target=srv.run, daemon=True, name="server")
             thread.start()
@@ -217,6 +240,12 @@ def main() -> None:
     # the window is closed: stop the server and leave nothing running (readers may hold threads)
     if state.get("server"):
         state["server"].should_exit = True
+    try:  # the phone's link (server/remote.py): its cloudflared would outlive this process
+        import remote
+
+        remote.stop()
+    except Exception:
+        traceback.print_exc()
     print("closed")
     log.flush()
     os._exit(0)
