@@ -297,8 +297,81 @@
   function setDraftFilter(k, v) { draftFilter[k] = v.trim(); renderDraftList(); }
   function clearDraftFilters() { for (const k in draftFilter) draftFilter[k] = ''; closeColFilter(false); renderDraftList(); }
 
-  // phones show the popups as bottom sheets (app.css, --sheet): then they are not placed beside what opened them
-  const sheets = () => getComputedStyle(document.documentElement).getPropertyValue('--sheet').trim() === '1';
+  // phones show the popups as bottom sheets (app.css, --phone-ui): then they are not placed beside what opened them
+  const sheets = () => getComputedStyle(document.documentElement).getPropertyValue('--phone-ui').trim() === '1';
+  // a sheet slides away before it goes (app.css .sheet-out), unless motion is turned down; done() then hides it.
+  // Showing it again meanwhile (slideIn) keeps it.
+  const calm = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
+  function slideOut(node, done) {
+    clearTimeout(node.slideTimer);
+    if (!sheets() || calm() || !node.isConnected) { node.classList.remove('sheet-out'); done(); return; }
+    node.classList.add('sheet-out');
+    node.slideTimer = setTimeout(() => { node.classList.remove('sheet-out'); done(); }, 280);
+  }
+  function slideIn(node) { clearTimeout(node.slideTimer); node.classList.remove('sheet-out'); }
+  const shutPop = (d) => { if (d.open) slideOut(d.querySelector(':scope > .pop') || d, () => { d.open = false; }); };
+
+  // phones: the reading bar is a sheet, opened from the toolbar's القراءة
+  function setReadSheet(on) {
+    const bar = $('readBar'), open = document.body.classList.contains('read-open');
+    if (on && !open) { slideIn(bar); document.body.classList.add('read-open'); $('btnReadSheet').setAttribute('aria-expanded', 'true'); }
+    else if (!on && open) slideOut(bar, () => { document.body.classList.remove('read-open'); $('btnReadSheet').setAttribute('aria-expanded', 'false'); });
+  }
+
+  // phones: a list of three or more choices opens as a sheet; two stay the phone's own control (a toggle, really)
+  let selFor = null;
+  const sheetSelect = (t) => {
+    const s = t && t.closest && t.closest('select');
+    return s && sheets() && !s.disabled && !s.multiple && s.options.length > 2 ? s : null;
+  };
+  function selName(s) {
+    if (s.getAttribute('aria-label')) return s.getAttribute('aria-label');
+    const by = s.getAttribute('aria-labelledby'); if (by && $(by)) return $(by).textContent.trim();
+    const l = s.closest('label'); if (l) return [...l.childNodes].filter((n) => n.nodeType === 3).map((n) => n.data).join(' ').trim();
+    return s.title || '';
+  }
+  function openSelSheet(s) {
+    selFor = s;
+    const list = $('selList'), opts = [];
+    const add = (o) => {
+      const b = el('button', { type: 'button', class: 'sel-opt', role: 'option', 'aria-selected': String(o.selected), disabled: o.disabled, title: o.title || null,
+        onclick: () => pickSel(o.value) }, o.textContent);
+      opts.push(b); return b;
+    };
+    list.replaceChildren(...[...s.children].flatMap((n) => n.tagName === 'OPTGROUP'
+      ? [el('div', { class: 'sel-group', role: 'presentation' }, n.label), ...[...n.children].map(add)] : [add(n)]));
+    $('selTitle').textContent = selName(s);
+    slideIn($('selSheet')); $('selSheet').classList.remove('hidden');
+    (opts.find((b) => b.getAttribute('aria-selected') === 'true') || opts[0]).focus({ preventScroll: false });
+  }
+  function closeSelSheet(refocus) {
+    const s = selFor; if (!s) return;
+    selFor = null;
+    slideOut($('selSheet'), () => $('selSheet').classList.add('hidden'));
+    if (refocus) s.focus({ preventScroll: true });
+  }
+  function pickSel(v) {
+    const s = selFor; closeSelSheet(false);
+    if (s.value !== v) { s.value = v; s.dispatchEvent(new Event('change', { bubbles: true })); }
+  }
+  function initSelSheets() {
+    let touch = null;
+    // the phone's own list opens on the tap: the press is taken here, and the sheet opens when the finger lifts in place
+    document.addEventListener('touchstart', (e) => {
+      const s = sheetSelect(e.target); if (!s) return;
+      e.preventDefault(); touch = { s, x: e.touches[0].clientX, y: e.touches[0].clientY };
+    }, { capture: true, passive: false });
+    document.addEventListener('touchend', (e) => {
+      const t = touch; touch = null; if (!t) return;
+      const p = e.changedTouches[0];
+      if (Math.abs(p.clientX - t.x) < 10 && Math.abs(p.clientY - t.y) < 10) openSelSheet(t.s);
+    }, true);
+    document.addEventListener('mousedown', (e) => { const s = sheetSelect(e.target); if (s) { e.preventDefault(); openSelSheet(s); } }, true);
+    document.addEventListener('keydown', (e) => {
+      const s = sheetSelect(e.target);
+      if (s && (e.key === ' ' || e.key === 'Enter' || (e.altKey && e.key === 'ArrowDown'))) { e.preventDefault(); openSelSheet(s); }
+    }, true);
+  }
   // phones: a few bar controls live in a sheet (data-phone-in = the slot's id), and come back on wider screens
   function placeForPhone() {
     const phone = sheets();
@@ -320,7 +393,7 @@
     colFilterFor = k;
     pop.dataset.col = k;
     for (const inp of pop.querySelectorAll('input')) inp.value = draftFilter[inp.dataset.col];
-    pop.classList.remove('hidden');
+    slideIn(pop); pop.classList.remove('hidden');
     // under the header, its right edge on the header's (the page is right to left), kept inside the list
     if (!asSheet(pop)) {
       const area = pop.offsetParent.getBoundingClientRect(), r = th.getBoundingClientRect();
@@ -334,7 +407,7 @@
     if (!colFilterFor) return;
     const b = $('draftList').querySelector(`th[data-k="${colFilterFor}"] .filt`);
     colFilterFor = null;
-    $('colFilter').classList.add('hidden');
+    slideOut($('colFilter'), () => $('colFilter').classList.add('hidden'));
     if (b) { b.setAttribute('aria-expanded', 'false'); if (refocus) b.focus(); }
   }
 
@@ -766,7 +839,8 @@
     updateStage();
     $('btnRead').disabled = !p || busy;
     $('readState').textContent = text || (busy ? 'جارٍ القراءة…' : p && p.readWith ? 'قُرئت بـ ' + engineLabel(p.readWith) : '');
-    $('readState').classList.toggle('busy', !!busy);  // phones show the state only while reading
+    $('btnReadSheet').classList.toggle('busy', !!busy);  // phones: the reading shows on the toolbar's القراءة
+    $('btnReadSheet').classList.toggle('unread', !!p && !busy && !p.blocks);
   }
 
   function pushVersion(p, label, blocks) {
@@ -953,7 +1027,7 @@
     if (canRead) fillEngineChoices($('noteEngine'));
     const known = suggestions.get(String(markBox(mark)));
     if (known) showSuggestion(known);
-    pop.classList.remove('hidden');
+    slideIn(pop); pop.classList.remove('hidden');
     placeNote();
     showCrop(mark);  // async; the panel is placed again once the picture has a size
     const f = editNote || !note ? $('noteText') : $('noteWord'); f.focus(); f.select();
@@ -988,7 +1062,7 @@
     $('noteReadBtn').disabled = false;
   }
   function closeNote() {
-    $('notePop').classList.add('hidden');
+    slideOut($('notePop'), () => $('notePop').classList.add('hidden'));
     if (noteMark) noteMark.classList.remove('focus');
     noteMark = null;
   }
@@ -1069,7 +1143,7 @@
     $('linePickLine').classList.toggle('hidden', !t.line);
     $('linePickRow').classList.toggle('hidden', !t.row);
     $('linePickPara').textContent = t.cell ? 'الخلية' : 'الفقرة';
-    $('linePop').classList.remove('hidden');
+    slideIn($('linePop')); $('linePop').classList.remove('hidden');
     if (!why) {
       const sel = $('lineEngine'), keep = sel.value;
       fillEngineChoices(sel);
@@ -1141,7 +1215,7 @@
   }
   function closeLine() {
     lineAt = null;
-    $('linePop').classList.add('hidden');
+    slideOut($('linePop'), () => $('linePop').classList.add('hidden'));
   }
 
   // a picture on the clipboard pasted into the text goes in as a picture of the document, after the line
@@ -1485,11 +1559,11 @@
     $('modelSel').onchange = () => store.set('model', $('modelSel').value, true);
     $('langsSel').value = store.get('langs') || 'ara+eng';
     $('langsSel').onchange = () => store.set('langs', $('langsSel').value, true);
-    $('btnRead').onclick = () => readPage(current);
-    $('btnReadAll').onclick = () => readAllUnread();
+    $('btnRead').onclick = () => { setReadSheet(false); readPage(current); };
+    $('btnReadAll').onclick = () => { setReadSheet(false); readAllUnread(); };
     toolbar = window.DocEditor.toolbar($('fmtBar'), () => pe, {
       picture: insertPicture, flag: flagSelection, engines: engineChoices, hasPage: () => !!(draft && draft.pages[current]),
-      showLine: () => openLine(true), previewOn, togglePreview,
+      showLine: () => openLine(true), previewOn, togglePreview, slideOut, shutPop,
     }, $('editorScroll'));
     $('linePickLine').onclick = () => pickLine('line'); $('linePickPara').onclick = () => pickLine('para'); $('linePickRow').onclick = () => pickLine('row');
     $('lineReadBtn').onclick = rereadLine; $('lineUse').onclick = useLine; $('lineClose').onclick = closeLine;
@@ -1516,8 +1590,10 @@
     document.addEventListener('keydown', (e) => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's' && draft) { e.preventDefault(); saveDraft(); }
       if (e.key === 'Escape') {
+        if (selFor) { closeSelSheet(true); return; }  // a list over a sheet: just the list
         closeNote(); closeLine(); closeColFilter(true);
-        document.querySelectorAll('details.pop-wrap[open]').forEach((d) => { d.open = false; d.querySelector('summary').focus(); });
+        document.querySelectorAll('details.pop-wrap[open]').forEach((d) => { shutPop(d); d.querySelector('summary').focus(); });
+        if (document.body.classList.contains('read-open')) { setReadSheet(false); $('btnReadSheet').focus(); }
       }
     });
 
@@ -1538,21 +1614,29 @@
     const pops = () => document.querySelectorAll('details.pop-wrap');
     document.addEventListener('toggle', (e) => {  // toggle does not bubble; this listens on the way down
       const d = e.target;
-      if (d.matches && d.matches('details.pop-wrap') && d.open) pops().forEach((o) => { if (o !== d) o.open = false; });
+      if (!(d.matches && d.matches('details.pop-wrap') && d.open)) return;
+      slideIn(d.querySelector(':scope > .pop') || d);
+      pops().forEach((o) => { if (o !== d && !o.contains(d)) shutPop(o); });  // one at a time
     }, true);
     const closePops = (e) => {
-      pops().forEach((d) => { if (d.open && !d.contains(e.target)) d.open = false; });
+      if (e.target.closest && e.target.closest('#selSheet')) return;  // a list over a sheet: the sheet stays
+      if (selFor) closeSelSheet(false);
+      if (document.body.classList.contains('read-open') && !e.target.closest('#readBar, #btnReadSheet')) setReadSheet(false);
+      pops().forEach((d) => { if (d.open && !d.contains(e.target)) shutPop(d); });
       if (colFilterFor && !e.target.closest('#colFilter, .filt')) closeColFilter(false);
       if (noteMark && !e.target.closest('#notePop, mark.flag, .flag-item')) closeNote();
       if (lineAt && !e.target.closest('#linePop')) closeLine();
     };
-    // a sheet's dim (the body's ::after, app.css) closes on the click, so the dim is still there to take it and
-    // nothing under it is pressed; closing on the press would let the click through to the button underneath
+    // a sheet's dim (the body's ::after, app.css) closes when the finger lifts, not on the press: the press and the lift
+    // are both on the dim, so the click they make goes to the body and nothing under it is pressed. (Not on "click":
+    // iPhone Safari sends no click for a tap on the plain body.)
     const onDim = (e) => e.target === document.body && sheets();
     document.addEventListener('pointerdown', (e) => { if (!onDim(e)) closePops(e); });
     placeForPhone();
-    window.addEventListener('resize', placeForPhone);
-    document.addEventListener('click', (e) => { if (onDim(e)) closePops(e); });
+    window.addEventListener('resize', () => { placeForPhone(); if (!sheets()) { document.body.classList.remove('read-open'); closeSelSheet(false); } });
+    initSelSheets();
+    $('btnReadSheet').onclick = () => setReadSheet(!document.body.classList.contains('read-open'));
+    document.addEventListener('pointerup', (e) => { if (onDim(e)) closePops(e); });
 
     $('btnPick').onclick = () => $('fileAdd').click();
     $('btnPickBig').onclick = () => $('fileAdd').click();
@@ -1579,7 +1663,7 @@
     window.addEventListener('resize', () => { placeNote(); placeLine(); });
     initSplitters();
     initCollapse();
-    initPhotoPan();
+    initPhotoPan(); initPhotoPinch();
     initSelect();
   }
 
@@ -1597,6 +1681,33 @@
       const up = () => { drag.abort(); f.classList.remove('panning'); };
       f.addEventListener('pointerup', up, { signal }); f.addEventListener('pointercancel', up, { signal });
     });
+  }
+
+  // Touch: two fingers zoom the photo (the zoom slider follows), about the point between them; one finger scrolls.
+  // The page itself does not zoom (app.css touch-action; Safari's own gesture is stopped here).
+  function initPhotoPinch() {
+    const f = $('photoFrame'), z = $('zoom');
+    let pinch = null;
+    const span = (t) => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
+    f.addEventListener('touchstart', (e) => {
+      if (e.touches.length === 2 && !z.disabled && !f.classList.contains('selecting')) pinch = { d0: span(e.touches), z0: +z.value };
+    }, { passive: true });
+    f.addEventListener('touchmove', (e) => {
+      if (!pinch || e.touches.length !== 2) return;
+      e.preventDefault();
+      const next = Math.round(Math.max(+z.min, Math.min(+z.max, pinch.z0 * span(e.touches) / pinch.d0)));
+      if (next === +z.value) return;
+      const img = $('photoImg'), before = img.getBoundingClientRect(), r = next / +z.value;
+      const mx = (e.touches[0].clientX + e.touches[1].clientX) / 2, my = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+      z.value = next; applyPhotoTransform();
+      // keep the spot between the fingers where it was (relative moves: right-to-left scrolling too)
+      const after = img.getBoundingClientRect();
+      f.scrollLeft += after.left + (mx - before.left) * r - mx;
+      f.scrollTop += after.top + (my - before.top) * r - my;
+    }, { passive: false });
+    const end = (e) => { if (e.touches.length < 2) pinch = null; };
+    f.addEventListener('touchend', end); f.addEventListener('touchcancel', end);
+    f.addEventListener('gesturestart', (e) => e.preventDefault());
   }
 
   // Drag (or arrow keys on) the bars between pages | photo | text and above the flags list.

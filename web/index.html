@@ -101,6 +101,8 @@
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#sliders-horizontal"/></svg><span>الترويسة والخيارات</span>
         </summary>
         <div class="pop opts-pop">
+          <!-- phones: the header's format and "read all and produce" (app.js placeForPhone) -->
+          <div class="phone-slot phone-doc" id="phoneDocSlot"></div>
           <section class="pop-sec" aria-labelledby="optTplHead">
             <h3 class="pop-head" id="optTplHead">الترويسة</h3>
             <select id="templateSel" aria-labelledby="optTplHead"></select>
@@ -125,12 +127,12 @@
           </section>
         </div>
       </details>
-      <label class="inline-field"><span class="sr-only">الصيغة</span><select id="formatSel" aria-label="صيغة الملف"><option value="docx">Word (.docx)</option></select></label>
-      <button class="btn" id="btnQuick" type="button" title="يقرأ كل الصفحات غير المقروءة ثم ينتج الملف مباشرة، والمواضع غير الواضحة تُظلَّل">
+      <label class="inline-field" data-phone-in="phoneDocSlot"><span class="sr-only">صيغة الملف</span><select id="formatSel" aria-label="صيغة الملف"><option value="docx">Word (.docx)</option></select></label>
+      <button class="btn" id="btnQuick" type="button" data-phone-in="phoneDocSlot" title="يقرأ كل الصفحات غير المقروءة ثم ينتج الملف مباشرة، والمواضع غير الواضحة تُظلَّل">
         <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#lightning"/></svg><span>قراءة الكل والإنتاج</span>
       </button>
       <button class="btn primary" id="btnExport" type="button">
-        <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#file-arrow-down"/></svg><span>إنتاج الملف</span>
+        <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#file-arrow-down"/></svg><span data-short="إنتاج">إنتاج الملف</span>
       </button>
     </div>
   </div>
@@ -238,18 +240,17 @@
       <button class="rail" type="button" data-pane="text" aria-label="إظهار النص" title="إظهار النص">
         <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-out-line-horizontal"/></svg><span>النص</span>
       </button>
-      <div class="pane-head read-bar">
+      <!-- phones: this bar is the reading sheet, opened by btnReadSheet -->
+      <div class="pane-head read-bar" id="readBar" role="group" aria-label="القراءة">
         <button class="btn ghost small icon-only pane-collapse" type="button" data-pane="text" aria-label="طي النص" title="طي النص">
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#arrows-in-line-horizontal"/></svg>
         </button>
-        <!-- data-phone-in: on phones it moves into that slot of the reading options sheet (app.js placeForPhone) -->
-        <label class="inline-field" data-phone-in="phoneEngineSlot">المحرك <select id="engineSel"></select></label>
+        <label class="inline-field">المحرك <select id="engineSel"></select></label>
         <details class="pop-wrap" id="readPop">
           <summary class="btn ghost small" title="خيارات القراءة">
             <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#sliders-horizontal"/></svg><span>خيارات</span>
           </summary>
           <div class="pop">
-            <div class="phone-slot" id="phoneEngineSlot"></div>
             <label class="field" id="cleanupWrap">تحسين الصورة
               <select id="cleanupSel">
                 <option value="clean" selected>تنظيف</option>
@@ -272,13 +273,12 @@
             </label>
             <label class="field hidden" id="modelWrap">النموذج <select id="modelSel"></select></label>
             <label class="check hidden" id="skipWrap"><input type="checkbox" id="skipLetterhead" checked> تجاهل ترويسة الأصل</label>
-            <div class="phone-slot" id="phoneReadAllSlot"></div>
           </div>
         </details>
         <button class="btn primary small" id="btnRead" type="button">
           <svg class="i" aria-hidden="true"><use href="vendor/icons.svg#scan"/></svg><span>اقرأ الصفحة</span>
         </button>
-        <button class="btn small" id="btnReadAll" type="button" data-phone-in="phoneReadAllSlot">اقرأ غير المقروء</button>
+        <button class="btn small" id="btnReadAll" type="button">اقرأ غير المقروء</button>
         <span id="readState" class="read-state muted" role="status"></span>
         <!-- the page's earlier readings and versions: with the reading controls -->
         <details class="pop-wrap" id="verPop">
@@ -289,6 +289,8 @@
         </details>
       </div>
       <div class="edit-bar">
+        <button class="tb tb-text tb-lead" id="btnReadSheet" type="button" aria-expanded="false" aria-controls="readBar"
+                aria-label="القراءة: اقرأ الصفحة، واختر القارئ وخياراته، والنسخ السابقة"><svg class="i" aria-hidden="true"><use href="vendor/icons.svg#scan"/></svg>القراءة</button>
         <div class="fmt-bar" id="fmtBar" role="toolbar" aria-label="تنسيق النص"></div>
       </div>
       <div class="editor-scroll" id="editorScroll">
@@ -557,6 +559,12 @@
 </dialog>
 
 <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+<!-- phones: a <select> with three or more choices opens as this sheet (app.js openSelSheet) -->
+<div id="selSheet" class="sel-sheet hidden" role="dialog" aria-modal="true" aria-labelledby="selTitle">
+  <h3 class="sel-title" id="selTitle"></h3>
+  <div class="sel-list" id="selList" role="listbox" aria-labelledby="selTitle"></div>
+</div>
 
 <script src="vendor/jszip.min.js"></script>
 <script src="vendor/tiptap.min.js"></script>
